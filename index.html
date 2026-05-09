@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FotoPDF — Unisci le tue foto</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0d;
+      --surface: #161616;
+      --border: #2a2a2a;
+      --accent: #e8c97d;
+      --accent2: #c8853a;
+      --text: #f0ede6;
+      --muted: #6b6660;
+      --danger: #c0392b;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+
+    /* — Grain overlay — */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      background-size: 200px;
+      pointer-events: none;
+      z-index: 1000;
+      opacity: .5;
+    }
+
+    header {
+      width: 100%;
+      max-width: 900px;
+      padding: 56px 32px 16px;
+      animation: fadeDown .7s ease both;
+    }
+
+    .label {
+      font-size: 10px;
+      letter-spacing: .25em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.4rem, 6vw, 4rem);
+      line-height: 1.05;
+      font-weight: 700;
+      letter-spacing: -.02em;
+    }
+
+    h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    .subtitle {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .06em;
+    }
+
+    /* — Main card — */
+    main {
+      width: 100%;
+      max-width: 900px;
+      padding: 32px 32px 64px;
+      animation: fadeUp .7s .15s ease both;
+    }
+
+    /* — Drop zone — */
+    .drop-zone {
+      border: 1.5px dashed var(--border);
+      border-radius: 4px;
+      padding: 56px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .25s, background .25s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(232,201,125,.04);
+    }
+
+    .drop-zone input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      font-size: 2.4rem;
+      margin-bottom: 14px;
+      display: block;
+      filter: grayscale(1) brightness(1.2);
+    }
+
+    .drop-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem;
+      margin-bottom: 6px;
+    }
+
+    .drop-hint {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: .08em;
+    }
+
+    /* — Options bar — */
+    .options-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      margin: 20px 0;
+      padding: 16px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+
+    .options-bar label {
+      font-size: 11px;
+      letter-spacing: .08em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .options-bar select,
+    .options-bar input[type="text"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      padding: 5px 10px;
+      border-radius: 3px;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    .options-bar select:focus,
+    .options-bar input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    /* — Preview grid — */
+    .preview-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin: 28px 0 14px;
+    }
+
+    .preview-header h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      font-weight: 400;
+    }
+
+    .count-badge {
+      font-size: 10px;
+      letter-spacing: .12em;
+      color: var(--accent);
+      background: rgba(232,201,125,.1);
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+
+    .btn-clear {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .1em;
+      color: var(--danger);
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-transform: uppercase;
+      padding: 4px 0;
+      opacity: .7;
+      transition: opacity .2s;
+    }
+    .btn-clear:hover { opacity: 1; }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .thumb-card {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      animation: popIn .3s ease both;
+      cursor: grab;
+    }
+
+    .thumb-card.dragging { opacity: .4; cursor: grabbing; }
+    .thumb-card.drag-target { border-color: var(--accent); }
+
+    .thumb-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform .3s;
+    }
+
+    .thumb-card:hover img { transform: scale(1.05); }
+
+    .thumb-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,.7) 0%, transparent 50%);
+      opacity: 0;
+      transition: opacity .25s;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      padding: 8px;
+    }
+
+    .thumb-card:hover .thumb-overlay { opacity: 1; }
+
+    .thumb-num {
+      font-size: 9px;
+      letter-spacing: .1em;
+      color: var(--accent);
+    }
+
+    .thumb-remove {
+      background: rgba(192,57,43,.85);
+      border: none;
+      color: #fff;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      transition: transform .15s;
+    }
+
+    .thumb-remove:hover { transform: scale(1.15); }
+
+    /* — Action button — */
+    .btn-generate {
+      width: 100%;
+      padding: 18px 32px;
+      background: var(--accent);
+      color: #0d0d0d;
+      border: none;
+      border-radius: 3px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      font-weight: 500;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: background .2s, transform .15s;
+    }
+
+    .btn-generate::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.15), transparent);
+      transform: translateX(-100%);
+      transition: transform .5s;
+    }
+
+    .btn-generate:hover::before { transform: translateX(100%); }
+    .btn-generate:hover { background: #f0d48a; }
+    .btn-generate:active { transform: scale(.98); }
+    .btn-generate:disabled {
+      background: var(--border);
+      color: var(--muted);
+      cursor: not-allowed;
+    }
+
+    /* — Progress — */
+    .progress-wrap {
+      margin-top: 20px;
+      display: none;
+    }
+
+    .progress-wrap.visible { display: block; }
+
+    .progress-label {
+      font-size: 10px;
+      letter-spacing: .1em;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .progress-bar {
+      height: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      border-radius: 2px;
+      width: 0%;
+      transition: width .3s ease;
+    }
+
+    /* — Toast — */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      padding: 12px 22px;
+      border-radius: 3px;
+      font-size: 11px;
+      letter-spacing: .06em;
+      opacity: 0;
+      transition: opacity .3s, transform .3s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .toast.error { border-left-color: var(--danger); }
+
+    /* — Empty state — */
+    .empty-state {
+      display: none;
+    }
+
+    /* — Divider — */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 24px 0;
+    }
+
+    /* — Animations — */
+    @keyframes fadeDown {
+      from { opacity:0; transform: translateY(-16px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity:0; transform: translateY(16px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+
+    @keyframes popIn {
+      from { opacity:0; transform: scale(.9); }
+      to   { opacity:1; transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <p class="label">✦ Strumento client-side</p>
+  <h1>Unisci le tue<br/><em>foto in un PDF</em></h1>
+  <p class="subtitle">Nessun upload su server — tutto avviene nel tuo browser.</p>
+</header>
+
+<main>
+
+  <!-- Drop zone -->
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" multiple accept="image/*" />
+    <span class="drop-icon">◈</span>
+    <p class="drop-title">Trascina le foto qui</p>
+    <p class="drop-hint">oppure clicca per selezionarle &nbsp;·&nbsp; JPG, PNG, WEBP, GIF</p>
+  </div>
+
+  <!-- Options -->
+  <div class="options-bar">
+    <label>
+      FORMATO PAGINA
+      <select id="pageFormat">
+        <option value="a4">A4</option>
+        <option value="letter">Letter</option>
+        <option value="a3">A3</option>
+        <option value="fit">Adatta all'immagine</option>
+      </select>
+    </label>
+    <label>
+      ORIENTAMENTO
+      <select id="orientation">
+        <option value="auto">Automatico</option>
+        <option value="portrait">Verticale</option>
+        <option value="landscape">Orizzontale</option>
+      </select>
+    </label>
+    <label>
+      MARGINI (mm)
+      <input type="text" id="margin" value="8" style="width:52px;" />
+    </label>
+    <label>
+      NOME FILE
+      <input type="text" id="fileName" value="fotografie" style="width:120px;" />
+    </label>
+  </div>
+
+  <!-- Preview -->
+  <div class="preview-header" id="previewHeader" style="display:none">
+    <h2>Anteprima ordine</h2>
+    <div style="display:flex;gap:16px;align-items:center;">
+      <span class="count-badge" id="countBadge">0 foto</span>
+      <button class="btn-clear" id="btnClear">✕ Rimuovi tutte</button>
+    </div>
+  </div>
+
+  <div class="preview-grid" id="previewGrid"></div>
+
+  <hr class="divider" id="divider" style="display:none"/>
+
+  <button class="btn-generate" id="btnGenerate" disabled>
+    Genera e Scarica PDF
+  </button>
+
+  <!-- Progress -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-label">
+      <span id="progressText">Elaborazione...</span>
+      <span id="progressPct">0%</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const { jsPDF } = window.jspdf;
+
+  const fileInput    = document.getElementById('fileInput');
+  const dropZone     = document.getElementById('dropZone');
+  const previewGrid  = document.getElementById('previewGrid');
+  const previewHeader= document.getElementById('previewHeader');
+  const divider      = document.getElementById('divider');
+  const btnGenerate  = document.getElementById('btnGenerate');
+  const btnClear     = document.getElementById('btnClear');
+  const countBadge   = document.getElementById('countBadge');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  const progressText = document.getElementById('progressText');
+  const progressPct  = document.getElementById('progressPct');
+  const toast        = document.getElementById('toast');
+
+  let images = []; // [{file, dataUrl, name}]
+  let dragSrcIdx = null;
+
+  /* ─── Toast ─────────────────────────────────────────────── */
+  function showToast(msg, isError = false) {
+    toast.textContent = msg;
+    toast.className = 'toast' + (isError ? ' error' : '');
+    toast.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+
+  /* ─── File reading ───────────────────────────────────────── */
+  function readFile(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = e => res(e.target.result);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function addFiles(files) {
+    const valid = [...files].filter(f => f.type.startsWith('image/'));
+    if (!valid.length) { showToast('Nessuna immagine valida.', true); return; }
+
+    for (const f of valid) {
+      const dataUrl = await readFile(f);
+      images.push({ file: f, dataUrl, name: f.name });
+    }
+    renderGrid();
+    showToast(`${valid.length} foto aggiunta/e`);
+  }
+
+  /* ─── Grid rendering ─────────────────────────────────────── */
+  function renderGrid() {
+    previewGrid.innerHTML = '';
+    const show = images.length > 0;
+    previewHeader.style.display = show ? 'flex' : 'none';
+    divider.style.display = show ? 'block' : 'none';
+    btnGenerate.disabled = !show;
+    countBadge.textContent = `${images.length} foto`;
+
+    images.forEach((img, i) => {
+      const card = document.createElement('div');
+      card.className = 'thumb-card';
+      card.draggable = true;
+      card.dataset.idx = i;
+
+      card.innerHTML = `
+        <img src="${img.dataUrl}" alt="${img.name}" loading="lazy"/>
+        <div class="thumb-overlay">
+          <span class="thumb-num">#${i + 1}</span>
+          <button class="thumb-remove" title="Rimuovi">✕</button>
+        </div>`;
+
+      card.querySelector('.thumb-remove').addEventListener('click', e => {
+        e.stopPropagation();
+        images.splice(i, 1);
+        renderGrid();
+      });
+
+      // Drag-and-drop reorder
+      card.addEventListener('dragstart', () => { dragSrcIdx = i; card.classList.add('dragging'); });
+      card.addEventListener('dragend',   () => card.classList.remove('dragging'));
+      card.addEventListener('dragover',  e => { e.preventDefault(); card.classList.add('drag-target'); });
+      card.addEventListener('dragleave', () => card.classList.remove('drag-target'));
+      card.addEventListener('drop', e => {
+        e.preventDefault();
+        card.classList.remove('drag-target');
+        if (dragSrcIdx === null || dragSrcIdx === i) return;
+        const moved = images.splice(dragSrcIdx, 1)[0];
+        images.splice(i, 0, moved);
+        dragSrcIdx = null;
+        renderGrid();
+      });
+
+      previewGrid.appendChild(card);
+    });
+  }
+
+  /* ─── Drop zone events ───────────────────────────────────── */
+  fileInput.addEventListener('change', e => addFiles(e.target.files));
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    addFiles(e.dataTransfer.files);
+  });
+
+  btnClear.addEventListener('click', () => { images = []; renderGrid(); });
+
+  /* ─── PDF generation ─────────────────────────────────────── */
+  function loadImage(dataUrl) {
+    return new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.onerror = rej;
+      img.src = dataUrl;
+    });
+  }
+
+  function setProgress(pct, text) {
+    progressFill.style.width = pct + '%';
+    progressPct.textContent  = pct + '%';
+    if (text) progressText.textContent = text;
+  }
+
+  btnGenerate.addEventListener('click', async () => {
+    if (!images.length) return;
+
+    const format      = document.getElementById('pageFormat').value;
+    const orientation = document.getElementById('orientation').value;
+    const margin      = parseFloat(document.getElementById('margin').value) || 0;
+    const fileName    = (document.getElementById('fileName').value.trim() || 'fotografie') + '.pdf';
+
+    btnGenerate.disabled = true;
+    progressWrap.classList.add('visible');
+    setProgress(0, 'Avvio generazione PDF...');
+
+    try {
+      let pdf = null;
+
+      for (let i = 0; i < images.length; i++) {
+        const pct = Math.round(((i) / images.length) * 90);
+        setProgress(pct, `Elaborazione immagine ${i + 1} di ${images.length}…`);
+
+        const imgEl = await loadImage(images[i].dataUrl);
+        const iw = imgEl.naturalWidth;
+        const ih = imgEl.naturalHeight;
+        const isLandscape = iw > ih;
+
+        let pageOri;
+        if (orientation === 'auto')      pageOri = isLandscape ? 'landscape' : 'portrait';
+        else if (orientation === 'landscape') pageOri = 'landscape';
+        else                              pageOri = 'portrait';
+
+        let pageW, pageH;
+        if (format === 'fit') {
+          // Convert px to mm at 96dpi
+          pageW = iw * 25.4 / 96;
+          pageH = ih * 25.4 / 96;
+        } else {
+          const std = { a4: [210, 297], letter: [215.9, 279.4], a3: [297, 420] }[format];
+          [pageW, pageH] = pageOri === 'landscape' ? [std[1], std[0]] : std;
+        }
+
+        if (i === 0) {
+          pdf = new jsPDF({ orientation: pageOri, unit: 'mm', format: format === 'fit' ? [pageW, pageH] : format });
+        } else {
+          pdf.addPage(format === 'fit' ? [pageW, pageH] : format, pageOri);
+        }
+
+        const drawW = pageW - margin * 2;
+        const drawH = pageH - margin * 2;
+        const ratio  = Math.min(drawW / iw, drawH / ih);
+        const dw = iw * ratio;
+        const dh = ih * ratio;
+        const dx = margin + (drawW - dw) / 2;
+        const dy = margin + (drawH - dh) / 2;
+
+        // Determine format hint
+        const fmt = images[i].file.type === 'image/png' ? 'PNG' : 'JPEG';
+        pdf.addImage(images[i].dataUrl, fmt, dx, dy, dw, dh);
+      }
+
+      setProgress(95, 'Salvataggio file…');
+      await new Promise(r => setTimeout(r, 100));
+      pdf.save(fileName);
+      setProgress(100, '✓ PDF scaricato!');
+      showToast(`PDF creato con ${images.length} pagina/e ✓`);
+
+    } catch (err) {
+      console.error(err);
+      showToast('Errore durante la generazione.', true);
+      setProgress(0, 'Errore.');
+    } finally {
+      btnGenerate.disabled = false;
+      setTimeout(() => {
+        progressWrap.classList.remove('visible');
+        setProgress(0, 'Elaborazione...');
+      }, 2500);
+    }
+  });
+</script>
+</body>
+</html>

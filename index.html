@@ -3,1307 +3,1875 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Fotogramma — PDF Composer</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;0,700;1,300;1,500&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<meta name="theme-color" content="#1c1814"/>
+<title>Fotogramma — PDF Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;0,700;1,300&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
+/* ═══════════════════════════════════════════════
+   RESET & TOKENS
+═══════════════════════════════════════════════ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
-  --bg:#f2ece0;
+  --bg:#f0ead8;
   --surface:#faf7f0;
-  --surface2:#f0ead8;
-  --border:#d9d0be;
-  --border2:#c8bfac;
+  --surface2:#eee7d5;
+  --border:#d4cab8;
+  --border2:#c0b49e;
   --ink:#1c1814;
   --copper:#b5673a;
-  --copper2:#8b4a28;
-  --muted:#8a8276;
-  --sage:#4e7a55;
-  --danger:#a83232;
-  --sidebar-w:290px;
-  --header-h:64px;
+  --copper-lt:rgba(181,103,58,.12);
+  --muted:#8a7e74;
+  --sage:#4a7a52;
+  --danger:#a03030;
+  --header-h:52px;
+  --sidebar-w:272px;
+  --radius:3px;
 }
 html,body{height:100%;overflow:hidden;}
-body{
-  background:var(--bg);
-  color:var(--ink);
-  font-family:'IBM Plex Mono',monospace;
-  display:flex;flex-direction:column;
-}
+body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Mono',monospace;display:flex;flex-direction:column;}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");background-size:160px;pointer-events:none;z-index:9999;}
 
-/* grain */
-body::before{
-  content:'';position:fixed;inset:0;
-  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-  background-size:180px;pointer-events:none;z-index:9999;
-}
-
-/* ── HEADER ── */
+/* ═══════════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════════ */
 header{
-  height:var(--header-h);
-  background:var(--ink);
-  display:flex;align-items:center;justify-content:space-between;
-  padding:0 28px;flex-shrink:0;
-  border-bottom:1px solid #333;
+  height:var(--header-h);background:var(--ink);
+  display:flex;align-items:center;padding:0 18px;gap:0;flex-shrink:0;
+  border-bottom:1px solid #2e2820;
 }
 .logo{
-  font-family:'Cormorant Garamond',serif;
-  font-size:1.35rem;letter-spacing:.04em;color:#f2ece0;
-  display:flex;align-items:baseline;gap:10px;
+  font-family:'Cormorant Garamond',serif;font-size:1.2rem;
+  letter-spacing:.04em;color:#f0ead8;white-space:nowrap;
+  display:flex;align-items:baseline;gap:7px;margin-right:28px;
 }
-.logo-sub{font-size:.68rem;color:#8a8276;font-family:'IBM Plex Mono',monospace;letter-spacing:.12em;}
-.header-info{
-  font-size:.65rem;letter-spacing:.1em;color:#666;
-  display:flex;gap:20px;align-items:center;
-}
-.header-info kbd{
-  background:#2a2a2a;border:1px solid #444;padding:2px 6px;
-  border-radius:2px;color:#aaa;font-family:inherit;
-}
+.logo span{font-size:.6rem;color:#5a5248;font-family:'IBM Plex Mono',monospace;letter-spacing:.14em;}
 
-/* ── LAYOUT ── */
-.app{display:flex;height:calc(100vh - var(--header-h));overflow:hidden;}
+/* Tab nav */
+.tab-nav{display:flex;gap:2px;flex:1;overflow-x:auto;scrollbar-width:none;}
+.tab-nav::-webkit-scrollbar{display:none;}
+.tab-btn{
+  background:none;border:none;cursor:pointer;
+  font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.12em;
+  text-transform:uppercase;color:#666;padding:6px 14px;border-radius:var(--radius);
+  white-space:nowrap;transition:color .2s,background .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+.tab-btn:hover{color:#aaa;background:rgba(255,255,255,.06);}
+.tab-btn.active{color:var(--copper);background:rgba(181,103,58,.15);}
 
-/* ── SIDEBAR ── */
-aside{
-  width:var(--sidebar-w);flex-shrink:0;
-  background:var(--surface);
-  border-right:1px solid var(--border);
-  overflow-y:auto;
+.hdr-right{display:flex;align-items:center;gap:10px;margin-left:auto;padding-left:12px;}
+.hdr-badge{font-size:.58rem;letter-spacing:.1em;color:#484038;white-space:nowrap;}
+.btn-mob-set{
+  display:none;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
+  color:#f0ead8;font-family:inherit;font-size:.62rem;letter-spacing:.1em;
+  padding:6px 12px;border-radius:var(--radius);cursor:pointer;white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;transition:background .2s;
+}
+.btn-mob-set:active{background:rgba(255,255,255,.16);}
+
+/* ═══════════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════════ */
+.app{flex:1;overflow:hidden;position:relative;}
+
+/* ── PANEL SWITCHING ── */
+.panel{display:none;height:100%;}
+.panel.active{display:flex;}
+
+/* ═══════════════════════════════════════════════
+   SHARED SIDEBAR
+═══════════════════════════════════════════════ */
+.sidebar{
+  width:var(--sidebar-w);flex-shrink:0;background:var(--surface);
+  border-right:1px solid var(--border);overflow-y:auto;
   scrollbar-width:thin;scrollbar-color:var(--border) transparent;
 }
-aside::-webkit-scrollbar{width:4px;}
-aside::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.sidebar::-webkit-scrollbar{width:3px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border2);}
 
-.section{border-bottom:1px solid var(--border);}
-.section-header{
+.drawer-grip{
+  display:none;width:36px;height:4px;background:var(--border2);
+  border-radius:4px;margin:10px auto 6px;
+}
+.sec{border-bottom:1px solid var(--border);}
+.sec-hdr{
   width:100%;background:none;border:none;cursor:pointer;
-  padding:14px 18px;
-  display:flex;align-items:center;justify-content:space-between;
-  font-family:'IBM Plex Mono',monospace;font-size:.68rem;
-  letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
-  transition:color .2s,background .2s;
-  text-align:left;
+  padding:12px 16px;display:flex;align-items:center;justify-content:space-between;
+  font-family:'IBM Plex Mono',monospace;font-size:.62rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);transition:color .2s,background .2s;text-align:left;
 }
-.section-header:hover{color:var(--ink);background:var(--surface2);}
-.section-header.active{color:var(--copper);}
-.section-chevron{font-size:.7rem;transition:transform .25s;}
-.section-header.active .section-chevron{transform:rotate(180deg);}
-.section-body{
-  max-height:0;overflow:hidden;
-  transition:max-height .3s ease;
-}
-.section-body.open{max-height:600px;}
-.section-inner{padding:14px 18px 18px;}
+.sec-hdr:hover{color:var(--ink);background:var(--surface2);}
+.sec-hdr.on{color:var(--copper);}
+.sec-chev{font-size:.65rem;transition:transform .25s;}
+.sec-hdr.on .sec-chev{transform:rotate(180deg);}
+.sec-body{max-height:0;overflow:hidden;transition:max-height .32s ease;}
+.sec-body.open{max-height:700px;}
+.sec-in{padding:12px 16px 16px;}
 
-/* form elements */
-.field{margin-bottom:12px;}
-.field label{
-  display:block;font-size:.62rem;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--muted);margin-bottom:5px;
-}
-.field input[type=text],
-.field input[type=number],
-.field select,
-.field textarea{
+/* form */
+.fld{margin-bottom:11px;}
+.fld label{display:block;font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+.fld input[type=text],.fld input[type=number],.fld select{
   width:100%;background:var(--bg);border:1px solid var(--border);
-  color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:.72rem;
-  padding:7px 10px;border-radius:2px;outline:none;
-  transition:border-color .2s;
+  color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:.68rem;
+  padding:7px 9px;border-radius:var(--radius);outline:none;transition:border-color .2s;
+  -webkit-appearance:none;
 }
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--copper);}
-.field textarea{resize:vertical;min-height:52px;}
-.field-row{display:flex;gap:8px;}
-.field-row .field{flex:1;margin-bottom:0;}
+.fld input:focus,.fld select:focus{border-color:var(--copper);}
+.fld-row{display:flex;gap:7px;}
+.fld-row .fld{flex:1;margin-bottom:0;}
+.fld input[type=color]{width:100%;height:30px;padding:2px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);cursor:pointer;}
 
-/* toggle */
-.toggle-row{
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:10px;
-  font-size:.68rem;letter-spacing:.06em;color:var(--ink);
-}
-.toggle{
-  position:relative;width:34px;height:18px;flex-shrink:0;
-}
-.toggle input{opacity:0;width:0;height:0;}
-.toggle-track{
-  position:absolute;inset:0;background:var(--border2);
-  border-radius:20px;cursor:pointer;transition:background .25s;
-}
-.toggle input:checked~.toggle-track{background:var(--copper);}
-.toggle-thumb{
-  position:absolute;left:2px;top:2px;
-  width:14px;height:14px;background:#fff;
-  border-radius:50%;transition:transform .25s;
-  pointer-events:none;
-}
-.toggle input:checked~.toggle-track~.toggle-thumb{transform:translateX(16px);}
+.tog-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;font-size:.65rem;color:var(--ink);}
+.tog{position:relative;width:34px;height:18px;flex-shrink:0;}
+.tog input{opacity:0;width:0;height:0;}
+.tog-track{position:absolute;inset:0;background:var(--border2);border-radius:20px;cursor:pointer;transition:background .22s;}
+.tog input:checked~.tog-track{background:var(--copper);}
+.tog-thumb{position:absolute;left:2px;top:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:transform .22s;pointer-events:none;}
+.tog input:checked~.tog-track~.tog-thumb{transform:translateX(16px);}
 
-/* range */
-.range-wrap{display:flex;align-items:center;gap:10px;}
-.range-wrap input[type=range]{
-  flex:1;accent-color:var(--copper);cursor:pointer;height:3px;
-}
-.range-val{
-  font-size:.65rem;color:var(--copper);min-width:28px;text-align:right;
-}
+.rng-wrap{display:flex;align-items:center;gap:9px;}
+.rng-wrap input[type=range]{flex:1;accent-color:var(--copper);cursor:pointer;}
+.rng-val{font-size:.62rem;color:var(--copper);min-width:30px;text-align:right;}
 
-/* color swatch */
-.field input[type=color]{
-  width:100%;height:30px;padding:0 2px;border:1px solid var(--border);
-  border-radius:2px;background:var(--bg);cursor:pointer;
-}
+/* grid picker */
+.grid-pick{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;}
+.gopt{border:1.5px solid var(--border);background:var(--bg);border-radius:var(--radius);padding:5px 3px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;transition:border-color .2s,background .2s;}
+.gopt:hover{border-color:var(--copper);background:var(--surface2);}
+.gopt.sel{border-color:var(--copper);background:var(--copper-lt);}
+.gicon{display:grid;gap:2px;width:26px;height:26px;}
+.gicon span{background:var(--border2);border-radius:1px;display:block;}
+.gopt.sel .gicon span{background:var(--copper);}
+.glabel{font-size:.52rem;color:var(--muted);}
 
-/* grid selector */
-.grid-picker{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
-}
-.grid-opt{
-  border:1.5px solid var(--border);background:var(--bg);
-  border-radius:3px;padding:6px 4px;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;gap:3px;
-  transition:border-color .2s,background .2s;
-}
-.grid-opt:hover{border-color:var(--copper);background:var(--surface2);}
-.grid-opt.selected{border-color:var(--copper);background:rgba(181,103,58,.1);}
-.grid-icon{
-  display:grid;gap:2px;width:28px;height:28px;
-}
-.grid-icon span{background:var(--border2);border-radius:1px;display:block;}
-.grid-opt.selected .grid-icon span{background:var(--copper);}
-.grid-label{font-size:.55rem;letter-spacing:.06em;color:var(--muted);}
+/* kbd hints */
+.kbd-area{display:flex;flex-wrap:wrap;gap:5px;padding:11px 14px 14px;border-top:1px solid var(--border);}
+.kbd-item{display:flex;align-items:center;gap:4px;font-size:.56rem;color:var(--muted);}
+.kbd-item kbd{background:var(--surface2);border:1px solid var(--border);padding:1px 5px;border-radius:2px;font-family:inherit;color:var(--ink);}
 
-/* ── MAIN AREA ── */
-main{
-  flex:1;overflow-y:auto;padding:24px 28px 40px;
-  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
-}
-main::-webkit-scrollbar{width:4px;}
-main::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+/* ═══════════════════════════════════════════════
+   MAIN CONTENT
+═══════════════════════════════════════════════ */
+.main{flex:1;overflow-y:auto;padding:20px 24px 40px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.main::-webkit-scrollbar{width:4px;}
+.main::-webkit-scrollbar-thumb{background:var(--border2);}
 
-/* drop zone */
-.drop-zone{
-  border:1.5px dashed var(--border2);border-radius:3px;
-  padding:48px 28px;text-align:center;cursor:pointer;
+/* ── DROP ZONE ── */
+.dropzone{
+  border:1.5px dashed var(--border2);border-radius:var(--radius);
+  padding:44px 24px;text-align:center;cursor:pointer;
   position:relative;overflow:hidden;
-  transition:border-color .25s,background .25s;
-  background:var(--surface);
+  background:var(--surface);transition:border-color .25s,background .25s;
 }
-.drop-zone:hover,.drop-zone.drag-over{
-  border-color:var(--copper);background:rgba(181,103,58,.04);
-}
-.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
-.drop-icon{
-  font-family:'Cormorant Garamond',serif;font-size:2.6rem;
-  color:var(--border2);margin-bottom:12px;display:block;
-  transition:color .25s;
-}
-.drop-zone:hover .drop-icon{color:var(--copper);}
-.drop-title{
-  font-family:'Cormorant Garamond',serif;font-size:1.4rem;
-  font-weight:300;letter-spacing:.03em;margin-bottom:6px;
-}
-.drop-hint{font-size:.62rem;color:var(--muted);letter-spacing:.1em;}
-.drop-hint strong{color:var(--copper);}
+.dropzone:hover,.dropzone.over{border-color:var(--copper);background:var(--copper-lt);}
+.dropzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.dz-icon{font-family:'Cormorant Garamond',serif;font-size:2.2rem;color:var(--border2);margin-bottom:10px;display:block;transition:color .25s;}
+.dropzone:hover .dz-icon{color:var(--copper);}
+.dz-title{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:300;margin-bottom:5px;}
+.dz-hint{font-size:.58rem;color:var(--muted);letter-spacing:.08em;line-height:1.7;}
+.dz-hint strong{color:var(--copper);}
 
-/* toolbar */
-.toolbar{
-  display:flex;align-items:center;justify-content:space-between;
-  margin:20px 0 12px;flex-wrap:wrap;gap:8px;
-}
-.toolbar-left{display:flex;align-items:center;gap:10px;}
-.count-pill{
-  background:var(--ink);color:var(--bg);
-  font-size:.62rem;letter-spacing:.12em;
-  padding:4px 10px;border-radius:20px;
-}
-.sel-pill{
-  background:var(--copper);color:#fff;
-  font-size:.62rem;letter-spacing:.1em;
-  padding:4px 10px;border-radius:20px;
-  display:none;
-}
-.toolbar-right{display:flex;gap:6px;}
+/* ── TOOLBAR ── */
+.tbar{display:flex;align-items:center;justify-content:space-between;margin:16px 0 10px;flex-wrap:wrap;gap:7px;}
+.tbar-l{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.pill{background:var(--ink);color:var(--bg);font-size:.58rem;letter-spacing:.12em;padding:3px 9px;border-radius:20px;}
+.pill-c{background:var(--copper);color:#fff;font-size:.58rem;letter-spacing:.1em;padding:3px 9px;border-radius:20px;display:none;}
+.tbar-r{display:flex;gap:5px;flex-wrap:wrap;}
 .tbtn{
-  background:var(--surface);border:1px solid var(--border);
-  color:var(--muted);font-family:'IBM Plex Mono',monospace;
-  font-size:.62rem;letter-spacing:.08em;
-  padding:5px 10px;border-radius:2px;cursor:pointer;
-  transition:all .2s;white-space:nowrap;
+  background:var(--surface);border:1px solid var(--border);color:var(--muted);
+  font-family:'IBM Plex Mono',monospace;font-size:.58rem;letter-spacing:.08em;
+  padding:5px 9px;border-radius:var(--radius);cursor:pointer;transition:all .18s;
+  white-space:nowrap;-webkit-tap-highlight-color:transparent;
 }
-.tbtn:hover{color:var(--ink);border-color:var(--border2);background:var(--surface2);}
-.tbtn.danger:hover{color:var(--danger);border-color:var(--danger);}
-.tbtn.copper:hover{color:var(--copper);border-color:var(--copper);}
+.tbtn:hover,.tbtn:active{color:var(--ink);border-color:var(--border2);background:var(--surface2);}
+.tbtn.d:hover,.tbtn.d:active{color:var(--danger);border-color:var(--danger);}
+.tbtn.c:hover,.tbtn.c:active{color:var(--copper);border-color:var(--copper);}
 
-/* photo grid */
-.photo-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
-  gap:8px;margin-bottom:24px;
+/* ── PHOTO GRID ── */
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:7px;margin-bottom:20px;}
+.pcard{
+  position:relative;aspect-ratio:1;border-radius:var(--radius);overflow:hidden;
+  border:1.5px solid var(--border);background:var(--surface2);cursor:pointer;
+  animation:popIn .25s ease both;transition:border-color .18s,box-shadow .18s;
 }
-.photo-card{
-  position:relative;aspect-ratio:1;border-radius:3px;overflow:hidden;
-  border:1.5px solid var(--border);background:var(--surface2);
-  cursor:pointer;animation:popIn .28s ease both;
-  transition:border-color .2s,box-shadow .2s;
-}
-.photo-card:hover{border-color:var(--border2);}
-.photo-card.selected{border-color:var(--copper);box-shadow:0 0 0 2px rgba(181,103,58,.25);}
-.photo-card.drag-src{opacity:.35;}
-.photo-card.drag-over{border-color:var(--copper);box-shadow:0 0 0 2px rgba(181,103,58,.4);}
-
-.photo-img{
-  width:100%;height:100%;object-fit:cover;display:block;
-  transform-origin:center center;transition:transform .35s;
-}
-.photo-card:hover .photo-img{transform:scale(1.04);}
-
-.photo-overlay{
+.pcard:hover{border-color:var(--border2);}
+.pcard.sel{border-color:var(--copper);box-shadow:0 0 0 2px var(--copper-lt);}
+.pcard.drag-src{opacity:.3;}
+.pcard.drag-ov{border-color:var(--copper);}
+.pcard img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s;}
+.pcard:hover img{transform:scale(1.04);}
+.pcard-ov{
   position:absolute;inset:0;
-  background:linear-gradient(to top,rgba(20,14,8,.85) 0%,rgba(20,14,8,.2) 50%,transparent 75%);
-  opacity:0;transition:opacity .22s;
+  background:linear-gradient(to top,rgba(18,12,6,.88) 0%,rgba(18,12,6,.2) 55%,transparent 75%);
+  opacity:0;transition:opacity .2s;
   display:flex;flex-direction:column;justify-content:flex-end;padding:6px;
 }
-.photo-card:hover .photo-overlay,.photo-card.selected .photo-overlay{opacity:1;}
-.photo-name{
-  font-size:.55rem;letter-spacing:.04em;color:rgba(242,236,224,.8);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  margin-bottom:4px;
-}
-.photo-controls{display:flex;gap:4px;}
-.pc-btn{
-  width:22px;height:22px;border-radius:50%;border:none;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;font-size:.65rem;
-  font-family:inherit;transition:transform .15s,background .15s;
-  flex-shrink:0;
-}
-.pc-btn:hover{transform:scale(1.15);}
-.pc-rot{background:rgba(242,236,224,.15);color:#f2ece0;}
+.pcard:hover .pcard-ov,.pcard.sel .pcard-ov{opacity:1;}
+.pcard-name{font-size:.52rem;color:rgba(240,234,216,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;}
+.pcard-btns{display:flex;gap:3px;}
+.pc-btn{width:22px;height:22px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.62rem;transition:transform .14s,background .14s;flex-shrink:0;}
+.pc-btn:hover,.pc-btn:active{transform:scale(1.15);}
+.pc-rot{background:rgba(240,234,216,.14);color:#f0ead8;}
 .pc-rot:hover{background:rgba(181,103,58,.7)!important;}
-.pc-del{background:rgba(168,50,50,.7);color:#fff;}
-.pc-del:hover{background:rgba(168,50,50,1)!important;}
-
-.photo-num{
-  position:absolute;top:6px;left:6px;
-  background:rgba(20,14,8,.6);color:var(--bg);
-  font-size:.55rem;padding:2px 5px;border-radius:2px;
-  letter-spacing:.06em;
-}
-.photo-rot-badge{
-  position:absolute;top:6px;right:6px;
-  background:rgba(181,103,58,.8);color:#fff;
-  font-size:.55rem;padding:2px 5px;border-radius:2px;
-  display:none;
-}
-
-/* selection checkbox */
-.photo-check{
-  position:absolute;top:6px;left:6px;
-  width:16px;height:16px;border-radius:3px;
-  border:1.5px solid rgba(242,236,224,.6);
-  background:transparent;
-  display:flex;align-items:center;justify-content:center;
-  font-size:.6rem;color:#fff;
-  transition:background .15s,border-color .15s;
-}
-.photo-card.selected .photo-check{
-  background:var(--copper);border-color:var(--copper);
-}
+.pc-del{background:rgba(160,48,48,.7);color:#fff;}
+.pc-del:hover{background:rgba(160,48,48,1)!important;}
+.pcard-num{position:absolute;top:5px;left:5px;background:rgba(18,12,6,.6);color:var(--bg);font-size:.5rem;padding:2px 4px;border-radius:2px;}
+.pcard-rot{position:absolute;top:5px;right:5px;background:rgba(181,103,58,.85);color:#fff;font-size:.5rem;padding:2px 4px;border-radius:2px;display:none;}
+.pcard-chk{position:absolute;top:5px;left:5px;width:15px;height:15px;border-radius:2px;border:1.5px solid rgba(240,234,216,.55);background:transparent;display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#fff;transition:background .14s,border-color .14s;}
+.pcard.sel .pcard-chk{background:var(--copper);border-color:var(--copper);}
 
 /* ── ACTION BAR ── */
-.action-bar{
-  position:sticky;bottom:0;
-  background:linear-gradient(to top,var(--bg) 80%,transparent);
-  padding-top:20px;
+.action-bar{position:sticky;bottom:0;background:linear-gradient(to top,var(--bg) 72%,transparent);padding-top:18px;}
+.btn-go{
+  width:100%;padding:15px 24px;background:var(--ink);color:var(--bg);border:none;
+  font-family:'Cormorant Garamond',serif;font-size:1.05rem;letter-spacing:.1em;font-weight:300;
+  border-radius:var(--radius);cursor:pointer;position:relative;overflow:hidden;
+  transition:background .2s,transform .12s;
 }
-.btn-generate{
-  width:100%;padding:16px 28px;
-  background:var(--ink);color:var(--bg);border:none;
-  font-family:'Cormorant Garamond',serif;font-size:1.1rem;
-  letter-spacing:.1em;font-weight:300;
-  border-radius:2px;cursor:pointer;position:relative;overflow:hidden;
-  transition:background .2s,transform .15s;
-}
-.btn-generate::before{
-  content:'';position:absolute;inset:0;
-  background:linear-gradient(90deg,transparent,rgba(181,103,58,.2),transparent);
-  transform:translateX(-100%);transition:transform .6s;
-}
-.btn-generate:hover::before{transform:translateX(100%);}
-.btn-generate:hover{background:#2e2820;}
-.btn-generate:active{transform:scale(.99);}
-.btn-generate:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
-.btn-generate:disabled::before{display:none;}
+.btn-go::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(181,103,58,.18),transparent);transform:translateX(-100%);transition:transform .5s;}
+.btn-go:hover::before{transform:translateX(100%);}
+.btn-go:hover{background:#2c2418;}
+.btn-go:active{transform:scale(.99);}
+.btn-go:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+.btn-go:disabled::before{display:none;}
 
 /* progress */
-.progress-wrap{margin-top:14px;display:none;}
-.progress-wrap.visible{display:block;}
-.progress-meta{
-  display:flex;justify-content:space-between;
-  font-size:.62rem;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;
-}
-.progress-track{height:2px;background:var(--border);border-radius:2px;overflow:hidden;}
-.progress-fill{
-  height:100%;background:linear-gradient(90deg,var(--copper2),var(--copper));
-  border-radius:2px;width:0%;transition:width .3s ease;
-}
+.prog-wrap{margin-top:12px;display:none;}
+.prog-wrap.vis{display:block;}
+.prog-meta{display:flex;justify-content:space-between;font-size:.58rem;color:var(--muted);margin-bottom:5px;}
+.prog-track{height:2px;background:var(--border);border-radius:2px;overflow:hidden;}
+.prog-fill{height:100%;background:linear-gradient(90deg,#8b4a28,var(--copper));border-radius:2px;width:0%;transition:width .28s ease;}
 
-/* ── TOAST ── */
+/* ═══════════════════════════════════════════════
+   PDF TOOLS PANEL
+═══════════════════════════════════════════════ */
+.tools-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.tools-main{flex:1;overflow-y:auto;padding:24px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.tools-main::-webkit-scrollbar{width:4px;}
+
+/* Tool selector grid */
+.tool-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+  gap:10px;margin-bottom:28px;
+}
+.tool-card{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--radius);padding:18px 16px;cursor:pointer;
+  transition:border-color .2s,background .2s,transform .15s;
+  display:flex;flex-direction:column;gap:9px;
+  -webkit-tap-highlight-color:transparent;
+}
+.tool-card:hover{border-color:var(--copper);background:var(--surface2);transform:translateY(-2px);}
+.tool-card:active{transform:translateY(0);}
+.tc-icon{font-size:1.6rem;line-height:1;}
+.tc-name{font-family:'Cormorant Garamond',serif;font-size:1rem;font-weight:600;letter-spacing:.02em;}
+.tc-desc{font-size:.58rem;color:var(--muted);line-height:1.5;letter-spacing:.02em;}
+.tc-tag{font-size:.52rem;letter-spacing:.1em;color:var(--copper);text-transform:uppercase;}
+
+/* Active tool panel */
+.tool-active{display:none;flex-direction:column;height:100%;}
+.tool-active.vis{display:flex;}
+.tool-topbar{
+  display:flex;align-items:center;gap:12px;padding:14px 24px;
+  background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.btn-back{
+  background:none;border:1px solid var(--border);color:var(--muted);
+  font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.1em;
+  padding:5px 10px;border-radius:var(--radius);cursor:pointer;transition:all .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-back:hover{color:var(--ink);border-color:var(--border2);}
+.tool-title-bar{display:flex;align-items:baseline;gap:8px;}
+.tool-title{font-family:'Cormorant Garamond',serif;font-size:1.15rem;font-weight:600;}
+.tool-subtitle{font-size:.58rem;color:var(--muted);letter-spacing:.06em;}
+
+.tool-body{
+  flex:1;overflow-y:auto;display:flex;gap:0;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+.tool-body::-webkit-scrollbar{width:4px;}
+
+.tool-settings{
+  width:250px;flex-shrink:0;background:var(--surface);
+  border-right:1px solid var(--border);overflow-y:auto;padding:16px;
+  scrollbar-width:thin;
+}
+.tool-content{flex:1;overflow-y:auto;padding:20px 24px 40px;}
+
+/* Page thumbnail grid (for PDF tools) */
+.page-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:12px;}
+.pgcard{
+  border:2px solid var(--border);border-radius:var(--radius);overflow:hidden;
+  cursor:pointer;transition:border-color .18s;position:relative;
+  background:var(--surface2);aspect-ratio:.707;
+}
+.pgcard canvas,.pgcard img{width:100%;height:100%;object-fit:contain;display:block;}
+.pgcard:hover{border-color:var(--copper);}
+.pgcard.sel{border-color:var(--copper);box-shadow:0 0 0 2px var(--copper-lt);}
+.pgcard.del{border-color:var(--danger);opacity:.5;}
+.pg-num{position:absolute;bottom:0;left:0;right:0;background:rgba(18,12,6,.65);color:var(--bg);font-size:.52rem;text-align:center;padding:3px 0;letter-spacing:.06em;}
+.pg-badge{position:absolute;top:4px;right:4px;background:var(--copper);color:#fff;font-size:.52rem;padding:2px 5px;border-radius:2px;display:none;}
+.pgcard.sel .pg-badge{display:block;}
+.pgcard.del .pg-badge{display:block;background:var(--danger);}
+
+/* PDF file list (for merge) */
+.pdf-list{display:flex;flex-direction:column;gap:6px;margin-top:12px;}
+.pdf-item{
+  display:flex;align-items:center;gap:10px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:9px 12px;cursor:grab;
+}
+.pdf-item:active{cursor:grabbing;}
+.pdf-item.drag-src{opacity:.35;}
+.pdf-item.drag-ov{border-color:var(--copper);}
+.pdf-icon{font-size:1.1rem;flex-shrink:0;}
+.pdf-info{flex:1;min-width:0;}
+.pdf-name{font-size:.65rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pdf-pages{font-size:.55rem;color:var(--muted);margin-top:2px;}
+.pdf-rm{background:none;border:none;color:var(--muted);font-size:.8rem;cursor:pointer;padding:2px 5px;border-radius:2px;transition:color .15s;}
+.pdf-rm:hover{color:var(--danger);}
+.pdf-drag-handle{color:var(--border2);font-size:.7rem;cursor:grab;padding:0 2px;}
+
+/* Info box */
+.info-box{background:rgba(181,103,58,.08);border:1px solid rgba(181,103,58,.25);border-radius:var(--radius);padding:10px 12px;font-size:.6rem;color:var(--muted);line-height:1.6;margin-bottom:12px;}
+
+/* Section label */
+.sec-label{font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;margin-top:4px;}
+
+/* ═══════════════════════════════════════════════
+   OVERLAY / DRAWER
+═══════════════════════════════════════════════ */
+.overlay{display:none;position:fixed;inset:0;background:rgba(28,22,14,.52);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:298;}
+.overlay.vis{display:block;}
+
+/* ═══════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════ */
 .toast{
-  position:fixed;bottom:28px;left:50%;
-  transform:translateX(-50%) translateY(16px);
+  position:fixed;bottom:22px;left:50%;
+  transform:translateX(-50%) translateY(14px);
   background:var(--ink);color:var(--bg);
-  border-left:3px solid var(--copper);
-  padding:10px 20px;border-radius:2px;
-  font-size:.65rem;letter-spacing:.08em;
-  opacity:0;transition:opacity .28s,transform .28s;
+  border-left:3px solid var(--copper);padding:9px 18px;border-radius:var(--radius);
+  font-size:.6rem;letter-spacing:.07em;opacity:0;transition:opacity .26s,transform .26s;
   pointer-events:none;white-space:nowrap;z-index:10000;
 }
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.toast.error{border-left-color:var(--danger);}
+.toast.vis{opacity:1;transform:translateX(-50%) translateY(0);}
 .toast.ok{border-left-color:var(--sage);}
+.toast.err{border-left-color:var(--danger);}
 
-/* ── EMPTY STATE ── */
-.empty-hint{
-  text-align:center;padding:20px 0 32px;
-  font-size:.65rem;letter-spacing:.1em;color:var(--border2);
-  display:none;
+/* ═══════════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════════ */
+@keyframes popIn{from{opacity:0;transform:scale(.85);}to{opacity:1;transform:scale(1);}}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — MOBILE ≤ 680px
+═══════════════════════════════════════════════ */
+@media(max-width:680px){
+  html,body{height:auto;overflow:auto;overflow-x:hidden;}
+  .app{height:auto;overflow:visible;}
+  .panel{height:auto;}
+  .panel.active{flex-direction:column;}
+
+  /* Header */
+  .hdr-badge{display:none;}
+  .btn-mob-set{display:block;}
+  .logo span{display:none;}
+
+  /* Sidebar → bottom drawer */
+  .sidebar{
+    position:fixed;bottom:0;left:0;right:0;width:100%;
+    height:82vh;border-right:none;border-top:1px solid var(--border);
+    border-radius:16px 16px 0 0;z-index:299;
+    transform:translateY(100%);transition:transform .36s cubic-bezier(.32,.72,0,1);
+    overflow-y:auto;
+  }
+  .sidebar.open{transform:translateY(0);}
+  .drawer-grip{display:block;}
+
+  /* Photo-to-PDF main */
+  .main{padding:14px 14px 100px;min-height:calc(100vh - var(--header-h));}
+  .action-bar{position:fixed;bottom:0;left:0;right:0;padding:10px 14px 18px;background:linear-gradient(to top,var(--bg) 80%,transparent);z-index:200;}
+  .dropzone{padding:30px 16px;}
+  .dz-title{font-size:1.15rem;}
+  .photo-grid{grid-template-columns:repeat(2,1fr);gap:5px;}
+  .pcard-ov{opacity:1;}
+  .pcard:hover img{transform:none;}
+
+  /* Tools panel */
+  .tools-main{padding:14px 14px 90px;min-height:calc(100vh - var(--header-h));}
+  .tool-grid{grid-template-columns:repeat(2,1fr);gap:8px;}
+  .tool-settings{width:100%;border-right:none;border-bottom:1px solid var(--border);}
+  .tool-body{flex-direction:column;}
+  .tool-content{padding:14px 14px 90px;}
+  .tool-topbar{padding:10px 14px;}
+  .page-grid{grid-template-columns:repeat(3,1fr);}
 }
 
-/* ── ANIMATIONS ── */
-@keyframes popIn{from{opacity:0;transform:scale(.88);}to{opacity:1;transform:scale(1);}}
-
-/* ── SCROLLBAR main ── */
-::-webkit-scrollbar{width:5px;}
-::-webkit-scrollbar-track{background:transparent;}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
-
-/* ── KEYBOARD HINT ── */
-.kbd-hints{
-  display:flex;flex-wrap:wrap;gap:6px;padding:14px 18px 16px;
-  border-top:1px solid var(--border);
-}
-.kbd-item{
-  display:flex;align-items:center;gap:5px;
-  font-size:.58rem;letter-spacing:.06em;color:var(--muted);
-}
-.kbd-item kbd{
-  background:var(--surface2);border:1px solid var(--border);
-  padding:1px 5px;border-radius:2px;font-family:inherit;color:var(--ink);
+@media(max-width:380px){
+  .tab-btn{font-size:.55rem;padding:5px 9px;}
+  .tool-grid{grid-template-columns:1fr 1fr;}
 }
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
+<!-- ═══════ HEADER ═══════ -->
 <header>
-  <div class="logo">
-    ◈ Fotogramma
-    <span class="logo-sub">PDF Composer</span>
-  </div>
-  <div class="header-info">
-    <span>100% client-side — nessun upload</span>
-    <kbd>?</kbd>
+  <div class="logo">◈ Fotogramma <span>PDF STUDIO</span></div>
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="fotos">Foto → PDF</button>
+    <button class="tab-btn" data-tab="tools">Strumenti PDF</button>
+  </nav>
+  <div class="hdr-right">
+    <span class="hdr-badge">100% client-side</span>
+    <button class="btn-mob-set" id="btnMobSet">⚙ Opzioni</button>
   </div>
 </header>
 
 <div class="app">
 
-  <!-- ══ SIDEBAR ══ -->
-  <aside>
+<!-- ══════════════════════════════════════════════
+     PANEL 1 — FOTO → PDF
+══════════════════════════════════════════════ -->
+<div class="panel active" id="panel-fotos">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebarFotos">
+    <div class="drawer-grip"></div>
 
     <!-- Layout -->
-    <div class="section">
-      <button class="section-header active" data-section="layout">
-        Layout Pagina <span class="section-chevron">▾</span>
-      </button>
-      <div class="section-body open" id="sec-layout">
-        <div class="section-inner">
-
-          <div class="field">
-            <label>Immagini per pagina</label>
-            <div class="grid-picker">
-              <div class="grid-opt selected" data-per="1">
-                <div class="grid-icon" style="grid-template-columns:1fr">
-                  <span style="border-radius:1px"></span>
-                </div>
-                <span class="grid-label">1×1</span>
-              </div>
-              <div class="grid-opt" data-per="2">
-                <div class="grid-icon" style="grid-template-columns:1fr 1fr">
-                  <span></span><span></span>
-                </div>
-                <span class="grid-label">1×2</span>
-              </div>
-              <div class="grid-opt" data-per="4">
-                <div class="grid-icon" style="grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr">
-                  <span></span><span></span><span></span><span></span>
-                </div>
-                <span class="grid-label">2×2</span>
-              </div>
-              <div class="grid-opt" data-per="9">
-                <div class="grid-icon" style="grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr 1fr">
-                  <span></span><span></span><span></span>
-                  <span></span><span></span><span></span>
-                  <span></span><span></span><span></span>
-                </div>
-                <span class="grid-label">3×3</span>
-              </div>
+    <div class="sec">
+      <button class="sec-hdr on" data-sec="layout">Layout Pagina <span class="sec-chev">▾</span></button>
+      <div class="sec-body open" id="sec-layout">
+        <div class="sec-in">
+          <div class="fld"><label>Immagini per pagina</label>
+            <div class="grid-pick">
+              <div class="gopt sel" data-per="1"><div class="gicon" style="grid-template-columns:1fr"><span></span></div><span class="glabel">1×1</span></div>
+              <div class="gopt" data-per="2"><div class="gicon" style="grid-template-columns:1fr 1fr"><span></span><span></span></div><span class="glabel">1×2</span></div>
+              <div class="gopt" data-per="4"><div class="gicon" style="grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr"><span></span><span></span><span></span><span></span></div><span class="glabel">2×2</span></div>
+              <div class="gopt" data-per="9"><div class="gicon" style="grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr 1fr"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><span class="glabel">3×3</span></div>
             </div>
           </div>
-
-          <div class="field-row">
-            <div class="field">
-              <label>Formato</label>
-              <select id="pageFormat">
-                <option value="a4">A4</option>
-                <option value="letter">Letter</option>
-                <option value="a3">A3</option>
-                <option value="fit">Fit image</option>
-              </select>
+          <div class="fld-row">
+            <div class="fld"><label>Formato</label>
+              <select id="f-fmt"><option value="a4">A4</option><option value="letter">Letter</option><option value="a3">A3</option><option value="fit">Fit image</option></select>
             </div>
-            <div class="field">
-              <label>Orientamento</label>
-              <select id="orientation">
-                <option value="auto">Auto</option>
-                <option value="portrait">Verticale</option>
-                <option value="landscape">Orizzontale</option>
-              </select>
+            <div class="fld"><label>Orientamento</label>
+              <select id="f-ori"><option value="auto">Auto</option><option value="portrait">Verticale</option><option value="landscape">Orizzontale</option></select>
             </div>
           </div>
-
-          <div class="field-row">
-            <div class="field">
-              <label>Margine (mm)</label>
-              <input type="number" id="margin" value="8" min="0" max="40"/>
-            </div>
-            <div class="field">
-              <label>Gap griglia (mm)</label>
-              <input type="number" id="gridGap" value="4" min="0" max="20"/>
-            </div>
+          <div class="fld-row">
+            <div class="fld"><label>Margine (mm)</label><input type="number" id="f-margin" value="8" min="0" max="40"/></div>
+            <div class="fld"><label>Gap griglia (mm)</label><input type="number" id="f-gap" value="4" min="0" max="20"/></div>
           </div>
-
-          <div class="field">
-            <label>Colore sfondo pagina</label>
-            <input type="color" id="pageBg" value="#ffffff"/>
-          </div>
-
-          <div class="toggle-row">
-            <span>Adatta immagine (contain)</span>
-            <label class="toggle">
-              <input type="checkbox" id="fitContain" checked/>
-              <div class="toggle-track"></div>
-              <div class="toggle-thumb"></div>
-            </label>
-          </div>
-
+          <div class="fld"><label>Sfondo pagina</label><input type="color" id="f-bg" value="#ffffff"/></div>
+          <div class="tog-row"><span>Adatta (contain)</span><label class="tog"><input type="checkbox" id="f-contain" checked/><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
         </div>
       </div>
     </div>
 
     <!-- Copertina -->
-    <div class="section">
-      <button class="section-header" data-section="cover">
-        Copertina <span class="section-chevron">▾</span>
-      </button>
-      <div class="section-body" id="sec-cover">
-        <div class="section-inner">
-          <div class="toggle-row">
-            <span>Aggiungi copertina</span>
-            <label class="toggle">
-              <input type="checkbox" id="addCover"/>
-              <div class="toggle-track"></div>
-              <div class="toggle-thumb"></div>
-            </label>
-          </div>
+    <div class="sec">
+      <button class="sec-hdr" data-sec="cover">Copertina <span class="sec-chev">▾</span></button>
+      <div class="sec-body" id="sec-cover">
+        <div class="sec-in">
+          <div class="tog-row"><span>Aggiungi copertina</span><label class="tog"><input type="checkbox" id="f-cover"/><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
           <div id="coverFields" style="opacity:.4;pointer-events:none">
-            <div class="field">
-              <label>Titolo</label>
-              <input type="text" id="coverTitle" placeholder="Il mio album fotografico"/>
-            </div>
-            <div class="field">
-              <label>Sottotitolo</label>
-              <input type="text" id="coverSubtitle" placeholder="Maggio 2026"/>
-            </div>
-            <div class="field">
-              <label>Autore</label>
-              <input type="text" id="coverAuthor" placeholder="Nome Cognome"/>
-            </div>
-            <div class="toggle-row">
-              <span>Mostra data automatica</span>
-              <label class="toggle">
-                <input type="checkbox" id="coverDate" checked/>
-                <div class="toggle-track"></div>
-                <div class="toggle-thumb"></div>
-              </label>
-            </div>
+            <div class="fld"><label>Titolo</label><input type="text" id="f-ctitle" placeholder="Album fotografico"/></div>
+            <div class="fld"><label>Sottotitolo</label><input type="text" id="f-csub" placeholder="Maggio 2026"/></div>
+            <div class="fld"><label>Autore</label><input type="text" id="f-cauth" placeholder="Nome Cognome"/></div>
+            <div class="tog-row"><span>Data automatica</span><label class="tog"><input type="checkbox" id="f-cdate" checked/><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Annotazioni -->
-    <div class="section">
-      <button class="section-header" data-section="annot">
-        Annotazioni <span class="section-chevron">▾</span>
-      </button>
-      <div class="section-body" id="sec-annot">
-        <div class="section-inner">
-          <div class="toggle-row">
-            <span>Numeri di pagina</span>
-            <label class="toggle">
-              <input type="checkbox" id="pageNums"/>
-              <div class="toggle-track"></div>
-              <div class="toggle-thumb"></div>
-            </label>
-          </div>
-          <div class="field" id="pageNumPosField" style="display:none">
-            <label>Posizione</label>
-            <select id="pageNumPos">
-              <option value="bottom-center">Basso centro</option>
-              <option value="bottom-right">Basso destra</option>
-              <option value="bottom-left">Basso sinistra</option>
-            </select>
-          </div>
-          <div class="toggle-row">
-            <span>Didascalie (nome file)</span>
-            <label class="toggle">
-              <input type="checkbox" id="captions"/>
-              <div class="toggle-track"></div>
-              <div class="toggle-thumb"></div>
-            </label>
-          </div>
-          <div class="field">
-            <label>Colore testo annotazioni</label>
-            <input type="color" id="annotColor" value="#888888"/>
-          </div>
+    <div class="sec">
+      <button class="sec-hdr" data-sec="annot">Annotazioni <span class="sec-chev">▾</span></button>
+      <div class="sec-body" id="sec-annot">
+        <div class="sec-in">
+          <div class="tog-row"><span>Numeri di pagina</span><label class="tog"><input type="checkbox" id="f-pnum"/><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
+          <div id="pnumPos" style="display:none" class="fld"><label>Posizione</label><select id="f-pnumpos"><option value="bc">Basso centro</option><option value="br">Basso destra</option><option value="bl">Basso sinistra</option></select></div>
+          <div class="tog-row"><span>Didascalie (nome file)</span><label class="tog"><input type="checkbox" id="f-cap"/><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
+          <div class="fld"><label>Colore annotazioni</label><input type="color" id="f-annotclr" value="#888888"/></div>
         </div>
       </div>
     </div>
 
     <!-- Watermark -->
-    <div class="section">
-      <button class="section-header" data-section="wm">
-        Watermark <span class="section-chevron">▾</span>
-      </button>
-      <div class="section-body" id="sec-wm">
-        <div class="section-inner">
-          <div class="toggle-row">
-            <span>Attiva watermark</span>
-            <label class="toggle">
-              <input type="checkbox" id="wmOn"/>
-              <div class="toggle-track"></div>
-              <div class="toggle-thumb"></div>
-            </label>
-          </div>
+    <div class="sec">
+      <button class="sec-hdr" data-sec="wm">Watermark <span class="sec-chev">▾</span></button>
+      <div class="sec-body" id="sec-wm">
+        <div class="sec-in">
+          <div class="tog-row"><span>Attiva watermark</span><label class="tog"><input type="checkbox" id="f-wmon"/><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
           <div id="wmFields" style="opacity:.4;pointer-events:none">
-            <div class="field">
-              <label>Testo</label>
-              <input type="text" id="wmText" value="RISERVATO"/>
-            </div>
-            <div class="field">
-              <label>Opacità</label>
-              <div class="range-wrap">
-                <input type="range" id="wmOpacity" min="5" max="60" value="15"/>
-                <span class="range-val" id="wmOpacityVal">15%</span>
-              </div>
-            </div>
-            <div class="field">
-              <label>Dimensione testo</label>
-              <div class="range-wrap">
-                <input type="range" id="wmSize" min="16" max="72" value="36"/>
-                <span class="range-val" id="wmSizeVal">36pt</span>
-              </div>
-            </div>
+            <div class="fld"><label>Testo</label><input type="text" id="f-wmtxt" value="RISERVATO"/></div>
+            <div class="fld"><label>Opacità</label><div class="rng-wrap"><input type="range" id="f-wmop" min="5" max="60" value="15"/><span class="rng-val" id="f-wmopv">15%</span></div></div>
+            <div class="fld"><label>Dimensione</label><div class="rng-wrap"><input type="range" id="f-wmsz" min="16" max="72" value="36"/><span class="rng-val" id="f-wmszv">36pt</span></div></div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Export -->
-    <div class="section">
-      <button class="section-header" data-section="export">
-        Esportazione <span class="section-chevron">▾</span>
-      </button>
-      <div class="section-body" id="sec-export">
-        <div class="section-inner">
-          <div class="field">
-            <label>Nome file</label>
-            <input type="text" id="fileName" value="fotografie"/>
-          </div>
-          <div class="field">
-            <label>Qualità JPEG</label>
-            <div class="range-wrap">
-              <input type="range" id="quality" min="40" max="100" value="88"/>
-              <span class="range-val" id="qualityVal">88%</span>
-            </div>
-          </div>
-          <div class="field">
-            <label>Titolo PDF (metadati)</label>
-            <input type="text" id="pdfTitle" placeholder="Il mio album"/>
-          </div>
-          <div class="field">
-            <label>Autore PDF (metadati)</label>
-            <input type="text" id="pdfAuthor" placeholder="Nome Autore"/>
-          </div>
+    <div class="sec">
+      <button class="sec-hdr" data-sec="exp">Esportazione <span class="sec-chev">▾</span></button>
+      <div class="sec-body" id="sec-exp">
+        <div class="sec-in">
+          <div class="fld"><label>Nome file</label><input type="text" id="f-fname" value="fotografie"/></div>
+          <div class="fld"><label>Qualità JPEG</label><div class="rng-wrap"><input type="range" id="f-qual" min="40" max="100" value="88"/><span class="rng-val" id="f-qualv">88%</span></div></div>
+          <div class="fld"><label>Titolo PDF</label><input type="text" id="f-pdftitle" placeholder="Il mio album"/></div>
+          <div class="fld"><label>Autore PDF</label><input type="text" id="f-pdfauth" placeholder="Nome Autore"/></div>
         </div>
       </div>
     </div>
 
-    <!-- Keyboard hints -->
-    <div class="kbd-hints">
-      <div class="kbd-item"><kbd>Del</kbd> rimuovi selezione</div>
-      <div class="kbd-item"><kbd>R</kbd> ruota +90°</div>
-      <div class="kbd-item"><kbd>L</kbd> ruota -90°</div>
-      <div class="kbd-item"><kbd>A</kbd> seleziona tutto</div>
-      <div class="kbd-item"><kbd>Esc</kbd> deseleziona</div>
+    <div class="kbd-area">
+      <div class="kbd-item"><kbd>Del</kbd>rimuovi sel.</div>
+      <div class="kbd-item"><kbd>R</kbd>ruota +90°</div>
+      <div class="kbd-item"><kbd>L</kbd>ruota -90°</div>
+      <div class="kbd-item"><kbd>A</kbd>seleziona tutto</div>
+      <div class="kbd-item"><kbd>Esc</kbd>deseleziona</div>
+    </div>
+  </div><!-- /sidebar -->
+
+  <!-- MAIN: Foto → PDF -->
+  <div class="main" id="mainFotos">
+    <div class="dropzone" id="dz-fotos">
+      <input type="file" id="fi-fotos" multiple accept="image/*"/>
+      <span class="dz-icon">⬡</span>
+      <p class="dz-title">Trascina le foto qui</p>
+      <p class="dz-hint">o clicca per selezionare &nbsp;·&nbsp; <strong>JPG PNG WEBP GIF BMP</strong></p>
     </div>
 
-  </aside>
-
-  <!-- ══ MAIN ══ -->
-  <main id="mainArea">
-
-    <!-- Drop zone -->
-    <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" multiple accept="image/*"/>
-      <span class="drop-icon">⬡</span>
-      <p class="drop-title">Trascina le foto qui</p>
-      <p class="drop-hint">o clicca per selezionare &nbsp;·&nbsp; <strong>JPG PNG WEBP GIF BMP</strong></p>
-    </div>
-
-    <!-- Toolbar -->
-    <div class="toolbar" id="toolbar" style="display:none">
-      <div class="toolbar-left">
-        <span class="count-pill" id="countPill">0 foto</span>
-        <span class="sel-pill" id="selPill">0 selezionate</span>
+    <div class="tbar" id="tbar-fotos" style="display:none">
+      <div class="tbar-l">
+        <span class="pill" id="pill-fotos">0 foto</span>
+        <span class="pill-c" id="pillc-fotos">0 sel.</span>
       </div>
-      <div class="toolbar-right">
-        <button class="tbtn" id="btnAddMore">+ Aggiungi</button>
-        <input type="file" id="addMoreInput" multiple accept="image/*" style="display:none"/>
-        <button class="tbtn copper" id="btnRotateSel" style="display:none">↻ Ruota sel.</button>
-        <button class="tbtn copper" id="btnRotateSelCCW" style="display:none">↺ Ruota -90°</button>
-        <button class="tbtn danger" id="btnRemoveSel" style="display:none">✕ Rimuovi sel.</button>
-        <button class="tbtn danger" id="btnClearAll">✕ Rimuovi tutte</button>
+      <div class="tbar-r">
+        <button class="tbtn" id="btn-addmore">+ Aggiungi</button>
+        <input type="file" id="fi-addmore" multiple accept="image/*" style="display:none"/>
+        <button class="tbtn c" id="btn-rotsel" style="display:none">↻ Ruota sel.</button>
+        <button class="tbtn c" id="btn-rotselL" style="display:none">↺ -90°</button>
+        <button class="tbtn d" id="btn-remsel" style="display:none">✕ Sel.</button>
+        <button class="tbtn d" id="btn-clearall">✕ Tutte</button>
       </div>
     </div>
 
-    <!-- Photo grid -->
-    <div class="photo-grid" id="photoGrid"></div>
-    <div class="empty-hint" id="emptyHint">Nessuna foto aggiunta</div>
+    <div class="photo-grid" id="photo-grid"></div>
 
-    <!-- Action bar -->
     <div class="action-bar">
-      <button class="btn-generate" id="btnGenerate" disabled>
-        Genera e Scarica PDF
-      </button>
-      <div class="progress-wrap" id="progressWrap">
-        <div class="progress-meta">
-          <span id="progressText">Elaborazione...</span>
-          <span id="progressPct">0%</span>
+      <button class="btn-go" id="btn-genpdf" disabled>Genera e Scarica PDF</button>
+      <div class="prog-wrap" id="prog-fotos">
+        <div class="prog-meta"><span id="prog-ftxt">Elaborazione...</span><span id="prog-fpct">0%</span></div>
+        <div class="prog-track"><div class="prog-fill" id="prog-ffill"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /panel-fotos -->
+
+
+<!-- ══════════════════════════════════════════════
+     PANEL 2 — STRUMENTI PDF
+══════════════════════════════════════════════ -->
+<div class="panel" id="panel-tools">
+  <div class="tools-panel">
+
+    <!-- Tool selector -->
+    <div class="tools-main" id="tool-selector">
+      <p class="sec-label" style="margin-bottom:14px">Seleziona uno strumento</p>
+      <div class="tool-grid">
+        <div class="tool-card" data-tool="merge">
+          <div class="tc-icon">🔀</div>
+          <div class="tc-name">Unisci PDF</div>
+          <div class="tc-desc">Combina più file PDF in un unico documento, nell'ordine che vuoi.</div>
+          <div class="tc-tag">n file → 1 PDF</div>
         </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="progressFill"></div>
+        <div class="tool-card" data-tool="split">
+          <div class="tc-icon">✂️</div>
+          <div class="tc-name">Dividi PDF</div>
+          <div class="tc-desc">Estrai un intervallo di pagine o dividi ogni N pagine in file separati.</div>
+          <div class="tc-tag">1 PDF → n PDF</div>
+        </div>
+        <div class="tool-card" data-tool="compress">
+          <div class="tc-icon">🗜️</div>
+          <div class="tc-name">Comprimi PDF</div>
+          <div class="tc-desc">Riduci la dimensione del file regolando risoluzione e qualità immagini.</div>
+          <div class="tc-tag">Ottimizzazione</div>
+        </div>
+        <div class="tool-card" data-tool="resize">
+          <div class="tc-icon">📐</div>
+          <div class="tc-name">Ridimensiona Pagine</div>
+          <div class="tc-desc">Converti tutte le pagine in un formato standard (A4, Letter, A3…).</div>
+          <div class="tc-tag">Formato pagina</div>
+        </div>
+        <div class="tool-card" data-tool="rotate">
+          <div class="tc-icon">🔄</div>
+          <div class="tc-name">Ruota Pagine</div>
+          <div class="tc-desc">Ruota pagine selezionate o l'intero documento di 90°, 180° o 270°.</div>
+          <div class="tc-tag">Orientamento</div>
+        </div>
+        <div class="tool-card" data-tool="remove">
+          <div class="tc-icon">🗑️</div>
+          <div class="tc-name">Rimuovi Pagine</div>
+          <div class="tc-desc">Elimina le pagine indesiderate da un PDF con anteprima visiva.</div>
+          <div class="tc-tag">Pulizia</div>
+        </div>
+        <div class="tool-card" data-tool="watermark">
+          <div class="tc-icon">💧</div>
+          <div class="tc-name">Watermark</div>
+          <div class="tc-desc">Aggiungi un testo diagonale semitrasparente su tutte le pagine.</div>
+          <div class="tc-tag">Timbro testo</div>
+        </div>
+        <div class="tool-card" data-tool="pagenums">
+          <div class="tc-icon">🔢</div>
+          <div class="tc-name">Numeri di Pagina</div>
+          <div class="tc-desc">Stampa numeri di pagina in posizione e formato personalizzabili.</div>
+          <div class="tc-tag">Impaginazione</div>
+        </div>
+        <div class="tool-card" data-tool="toimg">
+          <div class="tc-icon">🖼️</div>
+          <div class="tc-name">PDF → Immagini</div>
+          <div class="tc-desc">Esporta ogni pagina come immagine PNG o JPEG in un archivio ZIP.</div>
+          <div class="tc-tag">ZIP di immagini</div>
         </div>
       </div>
     </div>
 
-  </main>
-</div>
+    <!-- Active tool workspace -->
+    <div class="tool-active" id="tool-active">
+      <div class="tool-topbar">
+        <button class="btn-back" id="btn-back">← Strumenti</button>
+        <div class="tool-title-bar">
+          <span class="tool-title" id="tool-title">Strumento</span>
+          <span class="tool-subtitle" id="tool-subtitle"></span>
+        </div>
+      </div>
+      <div class="tool-body">
+        <div class="tool-settings" id="tool-settings"></div>
+        <div class="tool-content" id="tool-content"></div>
+      </div>
+    </div>
 
+  </div>
+</div><!-- /panel-tools -->
+
+</div><!-- /app -->
+
+<!-- Overlay for mobile drawer -->
+<div class="overlay" id="overlay"></div>
 <div class="toast" id="toast"></div>
 
 <script>
+/* ═══════════════════════════════════════════════════════════
+   INIT LIBRARIES
+═══════════════════════════════════════════════════════════ */
 const { jsPDF } = window.jspdf;
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// ── STATE ─────────────────────────────────────────────────────────────
-let images = []; // {file, dataUrl, name, rotation:0, selected:false}
-let dragSrc = null;
-let imgsPerPage = 1;
-let lastClickIdx = null;
-
-// ── ELEMENT REFS ───────────────────────────────────────────────────────
-const fileInput    = document.getElementById('fileInput');
-const addMoreInput = document.getElementById('addMoreInput');
-const dropZone     = document.getElementById('dropZone');
-const photoGrid    = document.getElementById('photoGrid');
-const toolbar      = document.getElementById('toolbar');
-const countPill    = document.getElementById('countPill');
-const selPill      = document.getElementById('selPill');
-const btnGenerate  = document.getElementById('btnGenerate');
-const btnClearAll  = document.getElementById('btnClearAll');
-const btnAddMore   = document.getElementById('btnAddMore');
-const btnRotateSel = document.getElementById('btnRotateSel');
-const btnRotateSelCCW = document.getElementById('btnRotateSelCCW');
-const btnRemoveSel = document.getElementById('btnRemoveSel');
-const progressWrap = document.getElementById('progressWrap');
-const progressFill = document.getElementById('progressFill');
-const progressText = document.getElementById('progressText');
-const progressPct  = document.getElementById('progressPct');
-const toast        = document.getElementById('toast');
-const emptyHint    = document.getElementById('emptyHint');
-
-// ── TOAST ──────────────────────────────────────────────────────────────
-function showToast(msg, type='') {
-  toast.textContent = msg;
-  toast.className = 'toast ' + type;
-  toast.classList.add('show');
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => toast.classList.remove('show'), 2800);
+/* ═══════════════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════════════ */
+const $toast = document.getElementById('toast');
+function toast(msg, type='') {
+  $toast.textContent = msg;
+  $toast.className = 'toast vis ' + type;
+  clearTimeout($toast._t);
+  $toast._t = setTimeout(() => $toast.classList.remove('vis'), 3000);
 }
 
-// ── SIDEBAR ACCORDIONS ─────────────────────────────────────────────────
-document.querySelectorAll('.section-header').forEach(btn => {
+/* ═══════════════════════════════════════════════════════════
+   TAB NAVIGATION
+═══════════════════════════════════════════════════════════ */
+document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    const id = 'sec-' + btn.dataset.section;
-    const body = document.getElementById(id);
-    const isOpen = body.classList.contains('open');
-    body.classList.toggle('open', !isOpen);
-    btn.classList.toggle('active', !isOpen);
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    // On mobile, scroll to top
+    window.scrollTo(0, 0);
   });
 });
 
-// ── GRID PICKER ─────────────────────────────────────────────────────────
-document.querySelectorAll('.grid-opt').forEach(opt => {
-  opt.addEventListener('click', () => {
-    document.querySelectorAll('.grid-opt').forEach(o => o.classList.remove('selected'));
-    opt.classList.add('selected');
-    imgsPerPage = parseInt(opt.dataset.per);
+/* ═══════════════════════════════════════════════════════════
+   SIDEBAR SECTIONS (accordion)
+═══════════════════════════════════════════════════════════ */
+document.querySelectorAll('.sec-hdr').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const id = btn.closest('.sec').querySelector('.sec-body');
+    const open = id.classList.toggle('open');
+    btn.classList.toggle('on', open);
   });
 });
 
-// ── TOGGLES ────────────────────────────────────────────────────────────
-document.getElementById('addCover').addEventListener('change', e => {
+/* ═══════════════════════════════════════════════════════════
+   MOBILE DRAWER
+═══════════════════════════════════════════════════════════ */
+const overlay = document.getElementById('overlay');
+const sidebarFotos = document.getElementById('sidebarFotos');
+document.getElementById('btnMobSet').addEventListener('click', () => {
+  sidebarFotos.classList.add('open');
+  overlay.classList.add('vis');
+  document.body.style.overflow = 'hidden';
+});
+overlay.addEventListener('click', closeDrawer);
+function closeDrawer() {
+  sidebarFotos.classList.remove('open');
+  overlay.classList.remove('vis');
+  document.body.style.overflow = '';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RANGE BINDINGS
+═══════════════════════════════════════════════════════════ */
+function bindRange(id, vid, sfx) {
+  const el = document.getElementById(id), vl = document.getElementById(vid);
+  if (!el || !vl) return;
+  const upd = () => vl.textContent = el.value + sfx;
+  el.addEventListener('input', upd); upd();
+}
+bindRange('f-qual','f-qualv','%');
+bindRange('f-wmop','f-wmopv','%');
+bindRange('f-wmsz','f-wmszv','pt');
+
+/* ═══════════════════════════════════════════════════════════
+   TOGGLE DEPENDENCIES
+═══════════════════════════════════════════════════════════ */
+document.getElementById('f-cover').addEventListener('change', e => {
   const f = document.getElementById('coverFields');
   f.style.opacity = e.target.checked ? '1' : '.4';
   f.style.pointerEvents = e.target.checked ? 'auto' : 'none';
 });
-document.getElementById('wmOn').addEventListener('change', e => {
+document.getElementById('f-wmon').addEventListener('change', e => {
   const f = document.getElementById('wmFields');
   f.style.opacity = e.target.checked ? '1' : '.4';
   f.style.pointerEvents = e.target.checked ? 'auto' : 'none';
 });
-document.getElementById('pageNums').addEventListener('change', e => {
-  document.getElementById('pageNumPosField').style.display = e.target.checked ? 'block' : 'none';
+document.getElementById('f-pnum').addEventListener('change', e => {
+  document.getElementById('pnumPos').style.display = e.target.checked ? 'block' : 'none';
 });
 
-// ── RANGE DISPLAYS ──────────────────────────────────────────────────────
-function bindRange(id, valId, suffix) {
-  const el = document.getElementById(id);
-  const vl = document.getElementById(valId);
-  const update = () => vl.textContent = el.value + suffix;
-  el.addEventListener('input', update);
-  update();
-}
-bindRange('quality', 'qualityVal', '%');
-bindRange('wmOpacity', 'wmOpacityVal', '%');
-bindRange('wmSize', 'wmSizeVal', 'pt');
-
-// ── FILE READING ────────────────────────────────────────────────────────
-function readFile(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = e => res(e.target.result);
-    r.onerror = rej;
-    r.readAsDataURL(file);
+/* ═══════════════════════════════════════════════════════════
+   GRID PICKER
+═══════════════════════════════════════════════════════════ */
+let imgsPerPage = 1;
+document.querySelectorAll('.gopt').forEach(o => {
+  o.addEventListener('click', () => {
+    document.querySelectorAll('.gopt').forEach(x => x.classList.remove('sel'));
+    o.classList.add('sel');
+    imgsPerPage = parseInt(o.dataset.per);
   });
-}
+});
 
+/* ═══════════════════════════════════════════════════════════
+   ── FOTO → PDF LOGIC ──
+═══════════════════════════════════════════════════════════ */
+let images = [];
+let dragSrcIdx = null;
+let lastClick = null;
+
+function readFile(f) {
+  return new Promise((res,rej) => { const r = new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsDataURL(f); });
+}
 async function addFiles(files) {
   const valid = [...files].filter(f => f.type.startsWith('image/'));
-  if (!valid.length) { showToast('Nessuna immagine valida.', 'error'); return; }
+  if (!valid.length) { toast('Nessuna immagine valida.','err'); return; }
   for (const f of valid) {
     const dataUrl = await readFile(f);
-    images.push({ file:f, dataUrl, name:f.name, rotation:0, selected:false });
+    images.push({file:f, dataUrl, name:f.name, rotation:0, selected:false});
   }
   renderGrid();
-  showToast(`${valid.length} foto aggiunta/e`, 'ok');
+  toast(`${valid.length} foto aggiunta/e`,'ok');
 }
 
-// ── DROP ZONE ───────────────────────────────────────────────────────────
-fileInput.addEventListener('change', e => addFiles(e.target.files));
-addMoreInput.addEventListener('change', e => addFiles(e.target.files));
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); addFiles(e.dataTransfer.files); });
-btnAddMore.addEventListener('click', () => addMoreInput.click());
+document.getElementById('fi-fotos').addEventListener('change', e => addFiles(e.target.files));
+document.getElementById('fi-addmore').addEventListener('change', e => addFiles(e.target.files));
+document.getElementById('btn-addmore').addEventListener('click', () => document.getElementById('fi-addmore').click());
 
-// ── SELECTION HELPERS ───────────────────────────────────────────────────
-function getSelected() { return images.filter(i => i.selected); }
-function deselectAll() { images.forEach(i => i.selected = false); lastClickIdx = null; }
+const dzFotos = document.getElementById('dz-fotos');
+dzFotos.addEventListener('dragover', e => { e.preventDefault(); dzFotos.classList.add('over'); });
+dzFotos.addEventListener('dragleave', () => dzFotos.classList.remove('over'));
+dzFotos.addEventListener('drop', e => { e.preventDefault(); dzFotos.classList.remove('over'); addFiles(e.dataTransfer.files); });
 
+function getSel() { return images.filter(i => i.selected); }
+function deselAll() { images.forEach(i => i.selected = false); lastClick = null; }
 function updateSelUI() {
-  const selCount = getSelected().length;
-  selPill.textContent = `${selCount} selezionate`;
-  selPill.style.display = selCount > 0 ? 'inline-block' : 'none';
-  btnRotateSel.style.display = selCount > 0 ? '' : 'none';
-  btnRotateSelCCW.style.display = selCount > 0 ? '' : 'none';
-  btnRemoveSel.style.display = selCount > 0 ? '' : 'none';
-  // update card borders without full re-render
-  document.querySelectorAll('.photo-card').forEach((card, i) => {
-    card.classList.toggle('selected', images[i]?.selected || false);
+  const n = getSel().length;
+  const pillc = document.getElementById('pillc-fotos');
+  pillc.textContent = `${n} sel.`; pillc.style.display = n ? 'inline-block' : 'none';
+  ['btn-rotsel','btn-rotselL','btn-remsel'].forEach(id => document.getElementById(id).style.display = n ? '' : 'none');
+  document.querySelectorAll('.pcard').forEach((c,i) => {
+    if (!images[i]) return;
+    c.classList.toggle('sel', images[i].selected);
+    c.querySelector('.pcard-chk').textContent = images[i].selected ? '✓' : '';
   });
 }
 
-// ── RENDER GRID ─────────────────────────────────────────────────────────
 function renderGrid() {
-  photoGrid.innerHTML = '';
-  const hasImgs = images.length > 0;
-  toolbar.style.display = hasImgs ? 'flex' : 'none';
-  btnGenerate.disabled = !hasImgs;
-  countPill.textContent = `${images.length} foto`;
-  emptyHint.style.display = hasImgs ? 'none' : 'block';
+  const grid = document.getElementById('photo-grid');
+  const tbar = document.getElementById('tbar-fotos');
+  grid.innerHTML = '';
+  const has = images.length > 0;
+  tbar.style.display = has ? 'flex' : 'none';
+  document.getElementById('btn-genpdf').disabled = !has;
+  document.getElementById('pill-fotos').textContent = `${images.length} foto`;
 
   images.forEach((img, i) => {
-    const card = document.createElement('div');
-    card.className = 'photo-card' + (img.selected ? ' selected' : '');
-    card.dataset.idx = i;
-    card.draggable = true;
-
-    const rotStyle = img.rotation ? `transform:rotate(${img.rotation}deg);` : '';
-    const rotBadge = img.rotation ? `<div class="photo-rot-badge" style="display:block">${img.rotation}°</div>` : '';
-
-    card.innerHTML = `
-      <img class="photo-img" src="${img.dataUrl}" style="${rotStyle}" loading="lazy"/>
-      <div class="photo-check">${img.selected ? '✓' : ''}</div>
-      ${rotBadge}
-      <div class="photo-overlay">
-        <div class="photo-name">${img.name}</div>
-        <div class="photo-controls">
-          <button class="pc-btn pc-rot" data-action="rotL" title="Ruota -90°">↺</button>
-          <button class="pc-btn pc-rot" data-action="rotR" title="Ruota +90°">↻</button>
-          <button class="pc-btn pc-del" data-action="del" title="Rimuovi">✕</button>
+    const c = document.createElement('div');
+    c.className = 'pcard' + (img.selected ? ' sel' : '');
+    c.dataset.idx = i; c.draggable = true;
+    const rotStyle = img.rotation ? `transform:rotate(${img.rotation}deg)` : '';
+    c.innerHTML = `
+      <img src="${img.dataUrl}" style="${rotStyle}" loading="lazy"/>
+      <div class="pcard-chk">${img.selected?'✓':''}</div>
+      ${img.rotation ? `<div class="pcard-rot" style="display:block">${img.rotation}°</div>` : ''}
+      <div class="pcard-ov">
+        <div class="pcard-name">${img.name}</div>
+        <div class="pcard-btns">
+          <button class="pc-btn pc-rot" data-a="L" title="-90°">↺</button>
+          <button class="pc-btn pc-rot" data-a="R" title="+90°">↻</button>
+          <button class="pc-btn pc-del" data-a="del">✕</button>
         </div>
       </div>`;
 
-    // Card click = toggle select
-    card.addEventListener('click', e => {
+    c.addEventListener('click', e => {
       if (e.target.closest('.pc-btn')) return;
-      const idx = parseInt(card.dataset.idx);
-      if (e.shiftKey && lastClickIdx !== null) {
-        const lo = Math.min(lastClickIdx, idx), hi = Math.max(lastClickIdx, idx);
-        for (let j = lo; j <= hi; j++) images[j].selected = true;
-      } else if (e.ctrlKey || e.metaKey) {
+      const idx = parseInt(c.dataset.idx);
+      if (e.shiftKey && lastClick !== null) {
+        const lo=Math.min(lastClick,idx), hi=Math.max(lastClick,idx);
+        for (let j=lo;j<=hi;j++) images[j].selected=true;
+      } else if (e.ctrlKey||e.metaKey) {
         images[idx].selected = !images[idx].selected;
       } else {
-        const wasSelected = images[idx].selected;
-        deselectAll();
-        images[idx].selected = !wasSelected;
+        const was = images[idx].selected; deselAll(); images[idx].selected = !was;
       }
-      lastClickIdx = idx;
-      updateSelUI();
+      lastClick = idx; updateSelUI();
     });
 
-    // Per-card buttons
-    card.querySelectorAll('.pc-btn').forEach(btn => {
+    c.querySelectorAll('.pc-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        const idx = parseInt(card.dataset.idx);
-        const action = btn.dataset.action;
-        if (action === 'rotR') { images[idx].rotation = (images[idx].rotation + 90) % 360; renderGrid(); }
-        if (action === 'rotL') { images[idx].rotation = (images[idx].rotation - 90 + 360) % 360; renderGrid(); }
-        if (action === 'del') { images.splice(idx, 1); renderGrid(); }
+        const idx = parseInt(c.dataset.idx), a = btn.dataset.a;
+        if (a==='R') images[idx].rotation = (images[idx].rotation+90)%360;
+        if (a==='L') images[idx].rotation = (images[idx].rotation-90+360)%360;
+        if (a==='del') { images.splice(idx,1); }
+        renderGrid();
       });
     });
 
-    // Drag reorder
-    card.addEventListener('dragstart', e => {
-      dragSrc = parseInt(card.dataset.idx);
-      card.classList.add('drag-src');
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    card.addEventListener('dragend', () => card.classList.remove('drag-src'));
-    card.addEventListener('dragover', e => { e.preventDefault(); card.classList.add('drag-over'); });
-    card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
-    card.addEventListener('drop', e => {
-      e.preventDefault();
-      card.classList.remove('drag-over');
-      const tgt = parseInt(card.dataset.idx);
-      if (dragSrc === null || dragSrc === tgt) return;
-      const moved = images.splice(dragSrc, 1)[0];
-      images.splice(tgt, 0, moved);
-      dragSrc = null;
-      renderGrid();
+    c.addEventListener('dragstart', e => { dragSrcIdx=i; c.classList.add('drag-src'); e.dataTransfer.effectAllowed='move'; });
+    c.addEventListener('dragend', () => c.classList.remove('drag-src'));
+    c.addEventListener('dragover', e => { e.preventDefault(); c.classList.add('drag-ov'); });
+    c.addEventListener('dragleave', () => c.classList.remove('drag-ov'));
+    c.addEventListener('drop', e => {
+      e.preventDefault(); c.classList.remove('drag-ov');
+      if (dragSrcIdx===null||dragSrcIdx===i) return;
+      const moved=images.splice(dragSrcIdx,1)[0]; images.splice(i,0,moved); dragSrcIdx=null; renderGrid();
     });
 
-    photoGrid.appendChild(card);
+    grid.appendChild(c);
   });
-
   updateSelUI();
 }
 
-// ── TOOLBAR ACTIONS ─────────────────────────────────────────────────────
-btnClearAll.addEventListener('click', () => { images = []; renderGrid(); showToast('Tutte le foto rimosse'); });
-btnRotateSel.addEventListener('click', () => {
-  images.forEach(img => { if (img.selected) img.rotation = (img.rotation + 90) % 360; });
-  renderGrid();
-});
-btnRotateSelCCW.addEventListener('click', () => {
-  images.forEach(img => { if (img.selected) img.rotation = (img.rotation - 90 + 360) % 360; });
-  renderGrid();
-});
-btnRemoveSel.addEventListener('click', () => {
-  const before = images.length;
-  images = images.filter(i => !i.selected);
-  renderGrid();
-  showToast(`${before - images.length} foto rimosse`);
-});
+// Toolbar buttons
+document.getElementById('btn-clearall').addEventListener('click', () => { images=[]; renderGrid(); });
+document.getElementById('btn-rotsel').addEventListener('click', () => { images.forEach(img => { if(img.selected) img.rotation=(img.rotation+90)%360; }); renderGrid(); });
+document.getElementById('btn-rotselL').addEventListener('click', () => { images.forEach(img => { if(img.selected) img.rotation=(img.rotation-90+360)%360; }); renderGrid(); });
+document.getElementById('btn-remsel').addEventListener('click', () => { const n=getSel().length; images=images.filter(i=>!i.selected); renderGrid(); toast(`${n} foto rimosse`); });
 
-// ── KEYBOARD SHORTCUTS ──────────────────────────────────────────────────
+// Keyboard shortcuts
 document.addEventListener('keydown', e => {
   if (e.target.matches('input,textarea,select')) return;
-  if ((e.key === 'Delete' || e.key === 'Backspace') && getSelected().length) {
-    e.preventDefault();
-    const n = getSelected().length;
-    images = images.filter(i => !i.selected);
-    renderGrid(); showToast(`${n} foto rimosse`);
-  }
-  if (e.key === 'r' || e.key === 'R') {
-    images.forEach(img => { if (img.selected) img.rotation = (img.rotation + 90) % 360; });
-    if (getSelected().length) renderGrid();
-  }
-  if (e.key === 'l' || e.key === 'L') {
-    images.forEach(img => { if (img.selected) img.rotation = (img.rotation - 90 + 360) % 360; });
-    if (getSelected().length) renderGrid();
-  }
-  if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey) {
-    const allSel = images.every(i => i.selected);
-    images.forEach(i => i.selected = !allSel);
-    updateSelUI();
-  }
-  if (e.key === 'Escape') {
-    deselectAll(); updateSelUI();
-  }
+  if ((e.key==='Delete'||e.key==='Backspace') && getSel().length) { e.preventDefault(); const n=getSel().length; images=images.filter(i=>!i.selected); renderGrid(); toast(`${n} rimosse`); }
+  if (e.key==='r'||e.key==='R') { images.forEach(img=>{if(img.selected)img.rotation=(img.rotation+90)%360;}); if(getSel().length) renderGrid(); }
+  if (e.key==='l'||e.key==='L') { images.forEach(img=>{if(img.selected)img.rotation=(img.rotation-90+360)%360;}); if(getSel().length) renderGrid(); }
+  if ((e.key==='a'||e.key==='A')&&!e.ctrlKey&&!e.metaKey) { const all=images.every(i=>i.selected); images.forEach(i=>i.selected=!all); updateSelUI(); }
+  if (e.key==='Escape') { deselAll(); updateSelUI(); }
 });
 
-// ── PROGRESS ────────────────────────────────────────────────────────────
-function setProgress(pct, text) {
-  progressFill.style.width = pct + '%';
-  progressPct.textContent  = pct + '%';
-  if (text !== undefined) progressText.textContent = text;
+/* ── PDF GENERATION ─────────────────────────────────────── */
+function hexRgb(h) { return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; }
+
+function setFProg(pct, txt) {
+  document.getElementById('prog-ffill').style.width = pct+'%';
+  document.getElementById('prog-fpct').textContent = pct+'%';
+  if (txt!==undefined) document.getElementById('prog-ftxt').textContent = txt;
 }
 
-// ── HEX → RGB ───────────────────────────────────────────────────────────
-function hexToRgb(hex) {
-  const r = parseInt(hex.slice(1,3),16);
-  const g = parseInt(hex.slice(3,5),16);
-  const b = parseInt(hex.slice(5,7),16);
-  return [r, g, b];
-}
-
-// ── LOAD IMAGE ELEMENT ──────────────────────────────────────────────────
-function loadImg(dataUrl, rotation) {
-  return new Promise((res, rej) => {
+function loadRotImg(dataUrl, rotation) {
+  return new Promise((res,rej) => {
     const img = new Image();
     img.onload = () => {
-      if (!rotation) { res({ el:img, w:img.naturalWidth, h:img.naturalHeight }); return; }
-      // Draw rotated onto canvas
-      const sw = img.naturalWidth, sh = img.naturalHeight;
-      const [cw, ch] = (rotation===90||rotation===270) ? [sh, sw] : [sw, sh];
-      const c = document.createElement('canvas');
-      c.width = cw; c.height = ch;
-      const ctx = c.getContext('2d');
-      ctx.translate(cw/2, ch/2);
-      ctx.rotate(rotation * Math.PI / 180);
-      ctx.drawImage(img, -sw/2, -sh/2);
-      const rotUrl = c.toDataURL('image/jpeg', 0.95);
-      const img2 = new Image();
-      img2.onload = () => res({ el:img2, w:cw, h:ch, dataUrl:rotUrl });
-      img2.src = rotUrl;
+      if (!rotation) { res({el:img,w:img.naturalWidth,h:img.naturalHeight}); return; }
+      const sw=img.naturalWidth, sh=img.naturalHeight;
+      const [cw,ch]=(rotation===90||rotation===270)?[sh,sw]:[sw,sh];
+      const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+      const ctx=cv.getContext('2d');
+      ctx.translate(cw/2,ch/2); ctx.rotate(rotation*Math.PI/180); ctx.drawImage(img,-sw/2,-sh/2);
+      const url=cv.toDataURL('image/jpeg',.95);
+      const img2=new Image(); img2.onload=()=>res({el:img2,w:cw,h:ch,dataUrl:url}); img2.src=url;
     };
-    img.onerror = rej;
-    img.src = dataUrl;
+    img.onerror=rej; img.src=dataUrl;
   });
 }
 
-// ── PDF GENERATION ──────────────────────────────────────────────────────
-btnGenerate.addEventListener('click', async () => {
+document.getElementById('btn-genpdf').addEventListener('click', async () => {
   if (!images.length) return;
 
-  const fmt        = document.getElementById('pageFormat').value;
-  const ori        = document.getElementById('orientation').value;
-  const margin     = parseFloat(document.getElementById('margin').value) || 0;
-  const gap        = parseFloat(document.getElementById('gridGap').value) || 0;
-  const contain    = document.getElementById('fitContain').checked;
-  const pageBgHex  = document.getElementById('pageBg').value;
-  const quality    = parseInt(document.getElementById('quality').value) / 100;
-  const fileName   = (document.getElementById('fileName').value.trim() || 'fotografie') + '.pdf';
-  const pdfTitle   = document.getElementById('pdfTitle').value.trim();
-  const pdfAuthor  = document.getElementById('pdfAuthor').value.trim();
+  const fmt     = document.getElementById('f-fmt').value;
+  const ori     = document.getElementById('f-ori').value;
+  const margin  = parseFloat(document.getElementById('f-margin').value)||0;
+  const gap     = parseFloat(document.getElementById('f-gap').value)||0;
+  const contain = document.getElementById('f-contain').checked;
+  const bgHex   = document.getElementById('f-bg').value;
+  const quality = parseInt(document.getElementById('f-qual').value)/100;
+  const fname   = (document.getElementById('f-fname').value.trim()||'fotografie')+'.pdf';
 
-  const addCover   = document.getElementById('addCover').checked;
-  const coverTitle = document.getElementById('coverTitle').value.trim() || 'Album Fotografico';
-  const coverSub   = document.getElementById('coverSubtitle').value.trim();
-  const coverAuth  = document.getElementById('coverAuthor').value.trim();
-  const coverDate  = document.getElementById('coverDate').checked;
+  const addCover  = document.getElementById('f-cover').checked;
+  const cTitle    = document.getElementById('f-ctitle').value.trim()||'Album Fotografico';
+  const cSub      = document.getElementById('f-csub').value.trim();
+  const cAuth     = document.getElementById('f-cauth').value.trim();
+  const cDate     = document.getElementById('f-cdate').checked;
 
-  const showPageNums = document.getElementById('pageNums').checked;
-  const pageNumPos   = document.getElementById('pageNumPos').value;
-  const showCaptions = document.getElementById('captions').checked;
-  const annotColorHex= document.getElementById('annotColor').value;
+  const showPN    = document.getElementById('f-pnum').checked;
+  const pnPos     = document.getElementById('f-pnumpos').value;
+  const showCap   = document.getElementById('f-cap').checked;
+  const annotRgb  = hexRgb(document.getElementById('f-annotclr').value);
 
-  const wmOn     = document.getElementById('wmOn').checked;
-  const wmText   = document.getElementById('wmText').value.trim() || 'WATERMARK';
-  const wmOpacity= parseInt(document.getElementById('wmOpacity').value) / 100;
-  const wmSize   = parseInt(document.getElementById('wmSize').value);
+  const wmOn      = document.getElementById('f-wmon').checked;
+  const wmTxt     = document.getElementById('f-wmtxt').value.trim()||'WATERMARK';
+  const wmOp      = parseInt(document.getElementById('f-wmop').value)/100;
+  const wmSz      = parseInt(document.getElementById('f-wmsz').value);
 
-  const pageBg   = hexToRgb(pageBgHex);
-  const annotRgb = hexToRgb(annotColorHex);
+  const bgRgb     = hexRgb(bgHex);
+  const stdSizes  = {a4:[210,297],letter:[215.9,279.4],a3:[297,420]};
+  const gridMap   = {1:{c:1,r:1},2:{c:2,r:1},4:{c:2,r:2},9:{c:3,r:3}};
+  const grid      = gridMap[imgsPerPage]||{c:1,r:1};
 
-  btnGenerate.disabled = true;
-  progressWrap.classList.add('visible');
-  setProgress(0, 'Avvio...');
-
-  // Grid config
-  const gridMap = { 1:{c:1,r:1}, 2:{c:2,r:1}, 4:{c:2,r:2}, 9:{c:3,r:3} };
-  const grid    = gridMap[imgsPerPage] || {c:1,r:1};
-
-  // Page size lookup
-  const stdSizes = { a4:[210,297], letter:[215.9,279.4], a3:[297,420] };
-
-  function getPageDims(imgW, imgH) {
-    if (fmt === 'fit') {
-      const pw = imgW * 25.4 / 96;
-      const ph = imgH * 25.4 / 96;
-      return { pw, ph, pageOri: pw > ph ? 'landscape' : 'portrait' };
-    }
-    const std = stdSizes[fmt];
-    let pageOri;
-    if (ori === 'auto') pageOri = imgW > imgH ? 'landscape' : 'portrait';
-    else pageOri = ori;
-    const [pw, ph] = pageOri === 'landscape' ? [std[1],std[0]] : std;
-    return { pw, ph, pageOri };
+  function getPageDims(iw,ih) {
+    if (fmt==='fit') { const pw=iw*25.4/96,ph=ih*25.4/96; return {pw,ph,po:pw>ph?'landscape':'portrait'}; }
+    const std=stdSizes[fmt]; let po;
+    if (ori==='auto') po=iw>ih?'landscape':'portrait'; else po=ori;
+    const [pw,ph]=po==='landscape'?[std[1],std[0]]:std;
+    return {pw,ph,po};
   }
+
+  document.getElementById('btn-genpdf').disabled=true;
+  const pw=document.getElementById('prog-fotos'); pw.classList.add('vis');
+  setFProg(0,'Avvio...');
 
   try {
-    // Chunk images into pages
-    const chunks = [];
-    for (let i = 0; i < images.length; i += imgsPerPage) {
-      chunks.push(images.slice(i, i + imgsPerPage));
+    const loaded=[];
+    for (let i=0;i<images.length;i++) {
+      setFProg(Math.round(i/images.length*30),`Caricamento ${i+1}/${images.length}...`);
+      loaded.push(await loadRotImg(images[i].dataUrl, images[i].rotation));
     }
 
-    let pdf = null;
-    let totalPages = chunks.length + (addCover ? 1 : 0);
-    let currentPage = 0;
+    const chunks=[];
+    for (let i=0;i<images.length;i+=imgsPerPage) chunks.push(images.slice(i,i+imgsPerPage));
 
-    // Load all images upfront for dimension calculations
-    const loaded = [];
-    for (let i = 0; i < images.length; i++) {
-      setProgress(Math.round((i / images.length) * 30), `Caricamento immagine ${i+1}/${images.length}...`);
-      loaded.push(await loadImg(images[i].dataUrl, images[i].rotation));
-    }
+    const {pw:dPW,ph:dPH,po:dOri}=getPageDims(loaded[0]?.w||800,loaded[0]?.h||600);
+    const pdf=new jsPDF({orientation:dOri,unit:'mm',format:fmt==='fit'?[dPW,dPH]:fmt});
+    if (document.getElementById('f-pdftitle').value) pdf.setProperties({title:document.getElementById('f-pdftitle').value});
+    if (document.getElementById('f-pdfauth').value) pdf.setProperties({author:document.getElementById('f-pdfauth').value});
 
-    // Determine default page size from first image
-    const { pw:defPW, ph:defPH, pageOri:defOri } = getPageDims(loaded[0]?.w||1, loaded[0]?.h||1);
-
-    // Init PDF
-    pdf = new jsPDF({
-      orientation: defOri,
-      unit: 'mm',
-      format: fmt === 'fit' ? [defPW, defPH] : fmt
-    });
-
-    // PDF Metadata
-    if (pdfTitle) pdf.setProperties({ title: pdfTitle });
-    if (pdfAuthor) pdf.setProperties({ author: pdfAuthor });
-
-    // Helper: draw background
-    function drawBackground(pw, ph) {
-      pdf.setFillColor(...pageBg);
-      pdf.rect(0, 0, pw, ph, 'F');
-    }
-
-    // Helper: draw watermark
-    function drawWatermark(pw, ph) {
-      if (!wmOn || !wmText) return;
+    const drawBg=(w,h)=>{ pdf.setFillColor(...bgRgb); pdf.rect(0,0,w,h,'F'); };
+    const drawWM=(w,h)=>{
+      if(!wmOn) return;
       pdf.saveGraphicsState();
-      pdf.setGState(new pdf.GState({ opacity: wmOpacity }));
-      pdf.setFontSize(wmSize);
-      pdf.setTextColor(120, 120, 120);
-      pdf.text(wmText, pw/2, ph/2, { angle: 45, align: 'center', baseline: 'middle' });
+      pdf.setGState(new pdf.GState({opacity:wmOp}));
+      pdf.setFontSize(wmSz); pdf.setTextColor(120,120,120);
+      pdf.text(wmTxt,w/2,h/2,{angle:45,align:'center',baseline:'middle'});
       pdf.restoreGraphicsState();
-    }
+    };
+    const drawPN=(w,h,n,tot)=>{
+      if(!showPN) return;
+      pdf.setFontSize(8); pdf.setTextColor(...annotRgb);
+      const label=`${n} / ${tot}`, y=h-margin/2-2;
+      if(pnPos==='bc') pdf.text(label,w/2,y,{align:'center'});
+      else if(pnPos==='br') pdf.text(label,w-margin,y,{align:'right'});
+      else pdf.text(label,margin,y);
+    };
 
-    // Helper: draw page number
-    function drawPageNum(pw, ph, pageNum, total) {
-      if (!showPageNums) return;
-      pdf.setFontSize(8);
-      pdf.setTextColor(...annotRgb);
-      const label = `${pageNum} / ${total}`;
-      const y = ph - margin / 2 - 2;
-      if (pageNumPos === 'bottom-center') pdf.text(label, pw/2, y, { align:'center' });
-      else if (pageNumPos === 'bottom-right') pdf.text(label, pw - margin, y, { align:'right' });
-      else pdf.text(label, margin, y);
-    }
+    let cur=0, total=chunks.length+(addCover?1:0);
 
-    // ── COVER PAGE ──────────────────────────────────────────────────────
     if (addCover) {
-      currentPage++;
-      drawBackground(defPW, defPH);
-      const cx = defPW / 2;
-
-      // Decorative line
-      pdf.setDrawColor(...annotRgb);
-      pdf.setLineWidth(0.4);
-      pdf.line(margin * 2, defPH * 0.38, defPW - margin * 2, defPH * 0.38);
-
-      // Title
-      pdf.setFont('times','bold');
-      pdf.setFontSize(32);
-      pdf.setTextColor(28, 24, 20);
-      pdf.text(coverTitle, cx, defPH * 0.45, { align:'center' });
-
-      // Subtitle
-      if (coverSub) {
-        pdf.setFont('times','italic');
-        pdf.setFontSize(14);
-        pdf.setTextColor(...annotRgb);
-        pdf.text(coverSub, cx, defPH * 0.52, { align:'center' });
-      }
-
-      // Author
-      if (coverAuth) {
-        pdf.setFont('helvetica','normal');
-        pdf.setFontSize(10);
-        pdf.setTextColor(...annotRgb);
-        pdf.text(coverAuth.toUpperCase(), cx, defPH * 0.58, { align:'center', charSpace:1.5 });
-      }
-
-      // Date
-      if (coverDate) {
-        const dateStr = new Date().toLocaleDateString('it-IT', { year:'numeric', month:'long', day:'numeric' });
-        pdf.setFontSize(8);
-        pdf.setTextColor(...annotRgb);
-        pdf.text(dateStr.toUpperCase(), cx, defPH - margin - 8, { align:'center', charSpace:1 });
-      }
-
-      // Second line
-      pdf.line(margin * 2, defPH * 0.38 + 2, defPW - margin * 2, defPH * 0.38 + 2);
-
-      drawWatermark(defPW, defPH);
-      setProgress(35, 'Copertina creata...');
+      cur++;
+      drawBg(dPW,dPH);
+      const cx=dPW/2;
+      pdf.setDrawColor(...annotRgb); pdf.setLineWidth(.4);
+      pdf.line(margin*2,dPH*.38,dPW-margin*2,dPH*.38);
+      pdf.setFont('times','bold'); pdf.setFontSize(32); pdf.setTextColor(28,24,20);
+      pdf.text(cTitle,cx,dPH*.45,{align:'center'});
+      if(cSub){pdf.setFont('times','italic');pdf.setFontSize(14);pdf.setTextColor(...annotRgb);pdf.text(cSub,cx,dPH*.52,{align:'center'});}
+      if(cAuth){pdf.setFont('helvetica','normal');pdf.setFontSize(10);pdf.setTextColor(...annotRgb);pdf.text(cAuth.toUpperCase(),cx,dPH*.58,{align:'center',charSpace:1.5});}
+      if(cDate){const d=new Date().toLocaleDateString('it-IT',{year:'numeric',month:'long',day:'numeric'});pdf.setFontSize(8);pdf.setTextColor(...annotRgb);pdf.text(d.toUpperCase(),cx,dPH-margin-8,{align:'center',charSpace:1});}
+      pdf.line(margin*2,dPH*.38+2,dPW-margin*2,dPH*.38+2);
+      drawWM(dPW,dPH);
     }
 
-    // ── IMAGE PAGES ─────────────────────────────────────────────────────
-    for (let ci = 0; ci < chunks.length; ci++) {
-      const chunk = chunks[ci];
-      currentPage++;
-      const pct = 35 + Math.round((ci / chunks.length) * 55);
-      setProgress(pct, `Pagina ${ci+1} di ${chunks.length}...`);
+    for (let ci=0;ci<chunks.length;ci++) {
+      cur++;
+      const pct=30+Math.round(ci/chunks.length*65);
+      setFProg(pct,`Pagina ${ci+1} di ${chunks.length}...`);
+      const chunk=chunks[ci];
+      const first=loaded[ci*imgsPerPage];
+      const {pw,ph,po}=getPageDims(first?.w||800,first?.h||600);
 
-      // Determine page size
-      const first = loaded[ci * imgsPerPage];
-      const { pw, ph, pageOri } = getPageDims(first?.w||800, first?.h||600);
+      if(ci===0&&!addCover){/* already created */}
+      else pdf.addPage(fmt==='fit'?[pw,ph]:fmt,po);
 
-      if (ci === 0 && !addCover) {
-        // Already created
-        if (fmt !== 'fit') { /* orientation set at init */ }
-      } else {
-        pdf.addPage(fmt === 'fit' ? [pw, ph] : fmt, pageOri);
+      drawBg(pw,ph);
+      const captH=showCap?5:0;
+      const drawX0=margin,drawY0=margin;
+      const totW=pw-margin*2, totH=ph-margin*2-(showPN?8:0);
+      const {c:cols,r:rows}=grid;
+      const cellW=(totW-gap*(cols-1))/cols, cellH=(totH-gap*(rows-1))/rows;
+
+      for (let ci2=0;ci2<chunk.length;ci2++) {
+        const imgIdx=ci*imgsPerPage+ci2;
+        const lImg=loaded[imgIdx]; if(!lImg) continue;
+        const col=ci2%cols, row=Math.floor(ci2/cols);
+        const cx=drawX0+col*(cellW+gap), cy=drawY0+row*(cellH+gap);
+        const cdh=cellH-captH;
+        const iw=lImg.w, ih=lImg.h;
+        let dw,dh;
+        if(contain){const r=Math.min(cellW/iw,cdh/ih);dw=iw*r;dh=ih*r;}
+        else{const r=Math.max(cellW/iw,cdh/ih);dw=iw*r;dh=ih*r;}
+        const dx=cx+(cellW-dw)/2, dy=cy+(cdh-dh)/2;
+        if(!contain){pdf.saveGraphicsState();pdf.rect(cx,cy,cellW,cdh);pdf.clip();}
+        const src=lImg.dataUrl||chunk[ci2].dataUrl;
+        const imgF=lImg.dataUrl?'JPEG':(chunk[ci2].file.type==='image/png'?'PNG':'JPEG');
+        pdf.addImage(src,imgF,dx,dy,dw,dh,'','FAST');
+        if(!contain) pdf.restoreGraphicsState();
+        if(showCap){const rn=chunk[ci2].name.replace(/\.[^.]+$/,'');const nm=rn.length>28?rn.slice(0,26)+'…':rn;pdf.setFontSize(6);pdf.setTextColor(...annotRgb);pdf.text(nm,cx+cellW/2,cy+cdh+captH-.5,{align:'center'});}
       }
 
-      drawBackground(pw, ph);
-
-      // Caption height reservation
-      const captH = showCaptions ? 5 : 0;
-
-      // Available draw area
-      const drawX0 = margin;
-      const drawY0 = margin;
-      const totalW = pw - margin * 2;
-      const totalH = ph - margin * 2 - (showPageNums ? 8 : 0);
-
-      const cols = grid.c, rows = grid.r;
-      const cellW = (totalW - gap * (cols-1)) / cols;
-      const cellH = (totalH - gap * (rows-1)) / rows;
-
-      for (let ci2 = 0; ci2 < chunk.length; ci2++) {
-        const imgIdx = ci * imgsPerPage + ci2;
-        const imgData = chunk[ci2];
-        const lImg = loaded[imgIdx];
-        if (!lImg) continue;
-
-        const col = ci2 % cols;
-        const row = Math.floor(ci2 / cols);
-        const cx = drawX0 + col * (cellW + gap);
-        const cy = drawY0 + row * (cellH + gap);
-        const cellDrawH = cellH - captH;
-
-        // Fit or fill
-        const iw = lImg.w, ih = lImg.h;
-        let dw, dh;
-        if (contain) {
-          const ratio = Math.min(cellW / iw, cellDrawH / ih);
-          dw = iw * ratio; dh = ih * ratio;
-        } else {
-          const ratio = Math.max(cellW / iw, cellDrawH / ih);
-          dw = iw * ratio; dh = ih * ratio;
-        }
-
-        const dx = cx + (cellW - dw) / 2;
-        const dy = cy + (cellDrawH - dh) / 2;
-
-        // Clip if fill mode
-        if (!contain) {
-          pdf.saveGraphicsState();
-          pdf.rect(cx, cy, cellW, cellDrawH);
-          pdf.clip();
-        }
-
-        const imgFmt = lImg.dataUrl ? 'JPEG' : (imgData.file.type === 'image/png' ? 'PNG' : 'JPEG');
-        const src    = lImg.dataUrl || imgData.dataUrl;
-
-        pdf.addImage(src, imgFmt, dx, dy, dw, dh, '', 'FAST');
-
-        if (!contain) pdf.restoreGraphicsState();
-
-        // Caption
-        if (showCaptions) {
-          const rawName = imgData.name.replace(/\.[^.]+$/, '');
-          const name = rawName.length > 28 ? rawName.slice(0,26)+'…' : rawName;
-          pdf.setFontSize(6);
-          pdf.setTextColor(...annotRgb);
-          pdf.text(name, cx + cellW/2, cy + cellDrawH + captH - 0.5, { align:'center' });
-        }
-      }
-
-      // Cell grid lines (subtle) for multi-image pages
-      if (imgsPerPage > 1) {
-        pdf.setDrawColor(200, 195, 185);
-        pdf.setLineWidth(0.1);
-        for (let c2 = 0; c2 < cols; c2++) {
-          for (let r2 = 0; r2 < rows; r2++) {
-            const cx2 = drawX0 + c2*(cellW+gap);
-            const cy2 = drawY0 + r2*(cellH+gap);
-            pdf.rect(cx2, cy2, cellW, cellH - captH);
-          }
-        }
-      }
-
-      drawWatermark(pw, ph);
-      drawPageNum(pw, ph, currentPage - (addCover ? 1 : 0), chunks.length);
-
-      await new Promise(r => setTimeout(r, 0)); // yield to UI
+      drawWM(pw,ph);
+      drawPN(pw,ph,cur-(addCover?1:0),chunks.length);
+      await new Promise(r=>setTimeout(r,0));
     }
 
-    setProgress(95, 'Salvataggio...');
-    await new Promise(r => setTimeout(r, 80));
-    pdf.save(fileName);
-    setProgress(100, `✓ PDF scaricato — ${totalPages} pagina/e`);
-    showToast(`PDF creato con successo! ${totalPages} pagina/e`, 'ok');
-
+    setFProg(97,'Salvataggio...');
+    await new Promise(r=>setTimeout(r,80));
+    pdf.save(fname);
+    setFProg(100,`✓ PDF scaricato — ${total} pagina/e`);
+    toast(`PDF creato con successo! ${total} pagina/e`,'ok');
   } catch(err) {
-    console.error(err);
-    showToast('Errore durante la generazione.', 'error');
-    setProgress(0, 'Errore.');
+    console.error(err); toast('Errore durante la generazione.','err'); setFProg(0,'Errore.');
   } finally {
-    btnGenerate.disabled = false;
-    setTimeout(() => {
-      progressWrap.classList.remove('visible');
-      setProgress(0, 'Elaborazione...');
-    }, 3000);
+    document.getElementById('btn-genpdf').disabled=false;
+    setTimeout(()=>{ pw.classList.remove('vis'); setFProg(0,'Elaborazione...'); },3200);
   }
 });
+
+
+/* ═══════════════════════════════════════════════════════════
+   ── STRUMENTI PDF ──
+═══════════════════════════════════════════════════════════ */
+const toolDefs = {
+  merge:    {title:'Unisci PDF',    subtitle:'Trascina i PDF nell\'ordine desiderato'},
+  split:    {title:'Dividi PDF',    subtitle:'Estrai pagine o dividi in sezioni'},
+  compress: {title:'Comprimi PDF',  subtitle:'Riduci la dimensione del file'},
+  resize:   {title:'Ridimensiona',  subtitle:'Converti al formato pagina desiderato'},
+  rotate:   {title:'Ruota Pagine',  subtitle:'Clicca le pagine da ruotare'},
+  remove:   {title:'Rimuovi Pagine',subtitle:'Clicca le pagine da eliminare'},
+  watermark:{title:'Watermark',     subtitle:'Testo diagonale su tutte le pagine'},
+  pagenums: {title:'Numeri Pagina', subtitle:'Stampa numerazione sulle pagine'},
+  toimg:    {title:'PDF → Immagini',subtitle:'Esporta ogni pagina come immagine'},
+};
+
+let currentTool = null;
+let toolPdfDoc  = null;   // pdfjsLib document
+let toolPdfBuf  = null;   // ArrayBuffer of loaded PDF
+let toolPdfFiles = [];    // for merge: array of {name, buf, pageCount}
+let toolPageSel  = {};    // pageNum → true (selected/marked)
+let toolPageRot  = {};    // pageNum → rotation override
+
+document.querySelectorAll('.tool-card').forEach(card => {
+  card.addEventListener('click', () => openTool(card.dataset.tool));
+});
+document.getElementById('btn-back').addEventListener('click', closeTool);
+
+function openTool(id) {
+  currentTool = id;
+  toolPdfDoc = null; toolPdfBuf = null;
+  toolPdfFiles = []; toolPageSel = {}; toolPageRot = {};
+
+  document.getElementById('tool-selector').style.display = 'none';
+  const ta = document.getElementById('tool-active');
+  ta.classList.add('vis');
+  document.getElementById('tool-title').textContent = toolDefs[id].title;
+  document.getElementById('tool-subtitle').textContent = toolDefs[id].subtitle;
+
+  renderToolUI(id);
+}
+
+function closeTool() {
+  document.getElementById('tool-selector').style.display = 'block';
+  document.getElementById('tool-active').classList.remove('vis');
+  currentTool = null;
+}
+
+/* ── TOOL UI RENDERER ─────────────────────────────────────── */
+function renderToolUI(id) {
+  const settings = document.getElementById('tool-settings');
+  const content  = document.getElementById('tool-content');
+  settings.innerHTML = '';
+  content.innerHTML  = '';
+
+  if (id === 'merge') renderMerge(settings, content);
+  else if (id === 'split') renderSplit(settings, content);
+  else if (id === 'compress') renderCompress(settings, content);
+  else if (id === 'resize') renderResize(settings, content);
+  else if (id === 'rotate') renderRotate(settings, content);
+  else if (id === 'remove') renderRemove(settings, content);
+  else if (id === 'watermark') renderWatermark(settings, content);
+  else if (id === 'pagenums') renderPageNums(settings, content);
+  else if (id === 'toimg') renderToImg(settings, content);
+}
+
+/* ── HELPERS ──────────────────────────────────────────────── */
+function makeDZ(accept, multi, onFiles) {
+  const dz = document.createElement('div');
+  dz.className = 'dropzone';
+  const inp = document.createElement('input');
+  inp.type='file'; inp.accept=accept; inp.multiple=multi;
+  dz.appendChild(inp);
+  dz.innerHTML += `<span class="dz-icon">◈</span><p class="dz-title">${multi?'Trascina i file PDF':'Trascina il PDF'}</p><p class="dz-hint">o clicca per selezionare &nbsp;·&nbsp; <strong>PDF</strong></p>`;
+  dz.querySelector('input').addEventListener('change', e => onFiles([...e.target.files]));
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); onFiles([...e.dataTransfer.files].filter(f=>f.type==='application/pdf')); });
+  return dz;
+}
+
+function makeGoBtn(label, onClick) {
+  const wrap = document.createElement('div');
+  wrap.className = 'action-bar';
+  const btn = document.createElement('button');
+  btn.className='btn-go'; btn.textContent=label; btn.disabled=true;
+  const prog = document.createElement('div');
+  prog.className='prog-wrap';
+  prog.innerHTML=`<div class="prog-meta"><span class="prog-txt">Elaborazione...</span><span class="prog-pct">0%</span></div><div class="prog-track"><div class="prog-fill"></div></div>`;
+  btn.addEventListener('click', () => onClick(btn, prog));
+  wrap.appendChild(btn); wrap.appendChild(prog);
+  return {wrap, btn, prog};
+}
+
+function setProg(prog, pct, txt) {
+  prog.querySelector('.prog-fill').style.width = pct+'%';
+  prog.querySelector('.prog-pct').textContent = pct+'%';
+  if(txt!==undefined) prog.querySelector('.prog-txt').textContent = txt;
+}
+
+async function loadPDF(buf) {
+  const doc = await pdfjsLib.getDocument({data: buf}).promise;
+  return doc;
+}
+
+async function renderPageThumb(doc, pageNum, scale=0.25) {
+  const page = await doc.getPage(pageNum);
+  const vp = page.getViewport({scale, rotation: toolPageRot[pageNum]||0});
+  const cv = document.createElement('canvas');
+  cv.width=vp.width; cv.height=vp.height;
+  await page.render({canvasContext:cv.getContext('2d'), viewport:vp}).promise;
+  return cv;
+}
+
+async function renderPageFull(doc, pageNum, scale=1.5, rotation=0) {
+  const page = await doc.getPage(pageNum);
+  const vp = page.getViewport({scale, rotation});
+  const cv = document.createElement('canvas');
+  cv.width=vp.width; cv.height=vp.height;
+  await page.render({canvasContext:cv.getContext('2d'), viewport:vp}).promise;
+  return {canvas:cv, vp, origVp:page.getViewport({scale:1,rotation})};
+}
+
+function readAsBuf(file) {
+  return new Promise((res,rej) => { const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsArrayBuffer(file); });
+}
+
+function fmtBytes(b) {
+  if(b<1024) return b+'B';
+  if(b<1024*1024) return (b/1024).toFixed(1)+'KB';
+  return (b/1024/1024).toFixed(2)+'MB';
+}
+
+function sField(label, ...children) {
+  const d=document.createElement('div'); d.className='fld';
+  const l=document.createElement('label'); l.textContent=label; d.appendChild(l);
+  children.forEach(c=>d.appendChild(c));
+  return d;
+}
+
+function sSelect(opts, val) {
+  const s=document.createElement('select');
+  opts.forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; if(v===val) o.selected=true; s.appendChild(o); });
+  return s;
+}
+
+function infoBox(txt) {
+  const d=document.createElement('div'); d.className='info-box'; d.textContent=txt; return d;
+}
+
+function sLabel(txt) {
+  const d=document.createElement('p'); d.className='sec-label'; d.style.marginTop='12px'; d.textContent=txt; return d;
+}
+
+async function buildPageGrid(doc, content, onSelect) {
+  content.appendChild(sLabel(`Anteprima pagine (${doc.numPages})`));
+  const grid = document.createElement('div');
+  grid.className = 'page-grid';
+  content.appendChild(grid);
+  for (let p=1; p<=doc.numPages; p++) {
+    const card=document.createElement('div'); card.className='pgcard'; card.dataset.p=p;
+    const badge=document.createElement('div'); badge.className='pg-badge'; badge.textContent='✓';
+    const num=document.createElement('div'); num.className='pg-num'; num.textContent=`pag. ${p}`;
+    const cv = await renderPageThumb(doc,p,0.22);
+    card.appendChild(cv); card.appendChild(badge); card.appendChild(num);
+    card.addEventListener('click', () => onSelect(card, p));
+    grid.appendChild(card);
+  }
+  return grid;
+}
+
+async function pdfToJpegPages(doc, scale, quality, rotation, progressCb) {
+  const pages = [];
+  for (let p=1;p<=doc.numPages;p++) {
+    if(progressCb) progressCb(p, doc.numPages);
+    const rot = (rotation + (toolPageRot[p]||0)) % 360;
+    const {canvas, vp, origVp} = await renderPageFull(doc,p,scale,rot);
+    const w = origVp.width, h = origVp.height;
+    const actualW = canvas.width, actualH = canvas.height;
+    pages.push({dataUrl:canvas.toDataURL('image/jpeg',quality), w:actualW, h:actualH, origW:w, origH:h, canvas});
+  }
+  return pages;
+}
+
+function pdfFromPages(pages, fmt, ori, margin, contain, bgRgb) {
+  const stdSizes={a4:[210,297],letter:[215.9,279.4],a3:[297,420]};
+  let pdf=null;
+  for (let i=0;i<pages.length;i++) {
+    const {dataUrl,w,h,origW,origH}=pages[i];
+    let pw,ph,po;
+    if(fmt==='fit'){pw=origW*25.4/96;ph=origH*25.4/96;po=pw>ph?'landscape':'portrait';}
+    else {
+      const std=stdSizes[fmt]||stdSizes.a4;
+      po=ori==='auto'?(origW>origH?'landscape':'portrait'):ori;
+      [pw,ph]=po==='landscape'?[std[1],std[0]]:std;
+    }
+    if(!pdf) pdf=new jsPDF({orientation:po,unit:'mm',format:fmt==='fit'?[pw,ph]:fmt});
+    else pdf.addPage(fmt==='fit'?[pw,ph]:fmt,po);
+    pdf.setFillColor(...bgRgb); pdf.rect(0,0,pw,ph,'F');
+    const drawW=pw-margin*2, drawH=ph-margin*2;
+    let dw,dh;
+    if(contain){const r=Math.min(drawW/w,drawH/h);dw=w*r;dh=h*r;}
+    else{dw=drawW;dh=drawH;}
+    const dx=margin+(drawW-dw)/2, dy=margin+(drawH-dh)/2;
+    pdf.addImage(dataUrl,'JPEG',dx,dy,dw,dh,'','FAST');
+  }
+  return pdf;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOOL: MERGE
+═══════════════════════════════════════════════════════════ */
+function renderMerge(settings, content) {
+  settings.appendChild(infoBox('Trascina i PDF nell\'ordine in cui devono apparire nel documento finale. Puoi riordinarli trascinando.'));
+  const fld=sField('Nome file output');
+  const inp=document.createElement('input'); inp.type='text'; inp.value='unito'; inp.className='';
+  Object.assign(inp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  fld.appendChild(inp); settings.appendChild(fld);
+
+  const {wrap,btn,prog}=makeGoBtn('Unisci e Scarica PDF', async (btn,prog) => {
+    if(!toolPdfFiles.length) return;
+    btn.disabled=true; prog.classList.add('vis'); setProg(prog,0,'Unione in corso...');
+    try {
+      let pdf=null, pageCount=0;
+      for (let fi=0;fi<toolPdfFiles.length;fi++) {
+        const {name,buf}=toolPdfFiles[fi];
+        setProg(prog,Math.round(fi/toolPdfFiles.length*90),`File ${fi+1}/${toolPdfFiles.length}: ${name}`);
+        const doc=await loadPDF(buf.slice(0));
+        for (let p=1;p<=doc.numPages;p++) {
+          const {canvas,vp,origVp}=await renderPageFull(doc,p,1.5,0);
+          const ow=origVp.width,oh=origVp.height;
+          const pw=ow*25.4/96,ph=oh*25.4/96;
+          const po=pw>ph?'landscape':'portrait';
+          if(!pdf) pdf=new jsPDF({orientation:po,unit:'mm',format:[pw,ph]});
+          else pdf.addPage([pw,ph],po);
+          pdf.addImage(canvas.toDataURL('image/jpeg',.92),'JPEG',0,0,pw,ph,'','FAST');
+          pageCount++;
+        }
+      }
+      setProg(prog,98,'Salvataggio...'); await new Promise(r=>setTimeout(r,80));
+      pdf.save((inp.value.trim()||'unito')+'.pdf');
+      setProg(prog,100,`✓ ${pageCount} pagine unite`);
+      toast(`PDF unito: ${pageCount} pagine`,'ok');
+    } catch(e) { console.error(e); toast('Errore durante l\'unione','err'); }
+    finally { btn.disabled=false; setTimeout(()=>prog.classList.remove('vis'),3000); }
+  });
+  settings.appendChild(wrap);
+
+  // File list
+  content.appendChild(makeDZ('application/pdf', true, async files => {
+    for (const f of files) {
+      const buf = await readAsBuf(f);
+      const doc = await loadPDF(buf.slice(0));
+      toolPdfFiles.push({name:f.name, buf, pageCount:doc.numPages});
+    }
+    renderMergeList(content, btn);
+    btn.disabled = toolPdfFiles.length < 2;
+  }));
+
+  content.appendChild(sLabel('File caricati'));
+  const list=document.createElement('div'); list.id='merge-list'; list.className='pdf-list';
+  content.appendChild(list);
+}
+
+let mergeDragSrc=null;
+function renderMergeList(content, btn) {
+  const list=document.getElementById('merge-list')||content.querySelector('.pdf-list');
+  if(!list) return;
+  list.innerHTML='';
+  toolPdfFiles.forEach((f,i) => {
+    const item=document.createElement('div'); item.className='pdf-item'; item.draggable=true; item.dataset.i=i;
+    item.innerHTML=`<span class="pdf-drag-handle">⠿</span><span class="pdf-icon">📄</span><div class="pdf-info"><div class="pdf-name">${f.name}</div><div class="pdf-pages">${f.pageCount} pagine · ${fmtBytes(f.buf.byteLength)}</div></div><button class="pdf-rm" data-i="${i}">✕</button>`;
+    item.addEventListener('dragstart',e=>{mergeDragSrc=i;item.classList.add('drag-src');e.dataTransfer.effectAllowed='move';});
+    item.addEventListener('dragend',()=>item.classList.remove('drag-src'));
+    item.addEventListener('dragover',e=>{e.preventDefault();item.classList.add('drag-ov');});
+    item.addEventListener('dragleave',()=>item.classList.remove('drag-ov'));
+    item.addEventListener('drop',e=>{e.preventDefault();item.classList.remove('drag-ov');if(mergeDragSrc===null||mergeDragSrc===i) return;const mv=toolPdfFiles.splice(mergeDragSrc,1)[0];toolPdfFiles.splice(i,0,mv);mergeDragSrc=null;renderMergeList(content,btn);});
+    item.querySelector('.pdf-rm').addEventListener('click',e=>{e.stopPropagation();toolPdfFiles.splice(i,1);renderMergeList(content,btn);if(btn) btn.disabled=toolPdfFiles.length<2;});
+    list.appendChild(item);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOOL: SPLIT
+═══════════════════════════════════════════════════════════ */
+function renderSplit(settings, content) {
+  settings.appendChild(infoBox('Puoi dividere per intervallo di pagine (es: "1-3,5,7-9") o ogni N pagine.'));
+
+  const modeSelect=sSelect([['range','Intervallo pagine'],['every','Ogni N pagine']],'range');
+  settings.appendChild(sField('Modalità',modeSelect));
+
+  const rangeWrap=document.createElement('div');
+  const rangeInp=document.createElement('input'); rangeInp.type='text'; rangeInp.placeholder='es: 1-3, 5, 7-9';
+  Object.assign(rangeInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  rangeWrap.appendChild(sField('Pagine da estrarre',rangeInp));
+  settings.appendChild(rangeWrap);
+
+  const everyWrap=document.createElement('div'); everyWrap.style.display='none';
+  const everyInp=document.createElement('input'); everyInp.type='number'; everyInp.value='1'; everyInp.min='1';
+  Object.assign(everyInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  everyWrap.appendChild(sField('Pagine per file',everyInp));
+  settings.appendChild(everyWrap);
+
+  modeSelect.addEventListener('change',()=>{
+    rangeWrap.style.display=modeSelect.value==='range'?'':'none';
+    everyWrap.style.display=modeSelect.value==='every'?'':'none';
+  });
+
+  const fnInp=document.createElement('input'); fnInp.type='text'; fnInp.value='pagine';
+  Object.assign(fnInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Prefisso nome file',fnInp));
+
+  const {wrap,btn,prog}=makeGoBtn('Dividi e Scarica ZIP', async (btn,prog) => {
+    if(!toolPdfDoc) return;
+    btn.disabled=true; prog.classList.add('vis'); setProg(prog,0,'Divisione...');
+    try {
+      const mode=modeSelect.value;
+      const numPages=toolPdfDoc.numPages;
+      let chunks=[];
+      if(mode==='range') {
+        const pgs=parsePageRange(rangeInp.value,numPages);
+        if(!pgs.length){toast('Intervallo non valido','err');return;}
+        chunks=[pgs];
+      } else {
+        const n=Math.max(1,parseInt(everyInp.value)||1);
+        for(let i=1;i<=numPages;i+=n) chunks.push(Array.from({length:Math.min(n,numPages-i+1)},(_,k)=>i+k));
+      }
+      const zip=new JSZip();
+      const prefix=fnInp.value.trim()||'pagine';
+      for(let ci=0;ci<chunks.length;ci++){
+        setProg(prog,Math.round(ci/chunks.length*90),`File ${ci+1}/${chunks.length}...`);
+        const pages=[];
+        for(const pn of chunks[ci]){
+          const {canvas,origVp}=await renderPageFull(toolPdfDoc,pn,1.5,0);
+          const ow=origVp.width,oh=origVp.height;
+          pages.push({dataUrl:canvas.toDataURL('image/jpeg',.92),w:canvas.width,h:canvas.height,origW:ow,origH:oh});
+        }
+        const pdf=pdfFromPages(pages,'fit','auto',0,true,[255,255,255]);
+        const blob=pdf.output('blob');
+        const label=chunks.length>1?`${prefix}_${String(ci+1).padStart(3,'0')}.pdf`:`${prefix}.pdf`;
+        zip.file(label,blob);
+      }
+      setProg(prog,97,'Compressione ZIP...');
+      const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=prefix+'_split.zip'; a.click();
+      URL.revokeObjectURL(url);
+      setProg(prog,100,`✓ ${chunks.length} file creati`);
+      toast(`${chunks.length} file nel ZIP`,'ok');
+    } catch(e){console.error(e);toast('Errore','err');}
+    finally{btn.disabled=false;setTimeout(()=>prog.classList.remove('vis'),3000);}
+  });
+  settings.appendChild(wrap);
+
+  content.appendChild(makeDZ('application/pdf',false,async files=>{
+    if(!files[0]) return;
+    toolPdfBuf=await readAsBuf(files[0]);
+    toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
+    btn.disabled=false;
+    content.querySelectorAll('.page-grid,.sec-label:not(:first-child)').forEach(el=>el.remove());
+    await buildPageGrid(toolPdfDoc,content,()=>{});
+    toast(`PDF caricato: ${toolPdfDoc.numPages} pagine`,'ok');
+  }));
+}
+
+function parsePageRange(str, max) {
+  const pages=new Set();
+  str.split(',').forEach(part=>{
+    part=part.trim();
+    if(part.includes('-')){
+      const [a,b]=part.split('-').map(Number);
+      for(let i=Math.max(1,a);i<=Math.min(max,b);i++) pages.add(i);
+    } else {
+      const n=parseInt(part);
+      if(n>=1&&n<=max) pages.add(n);
+    }
+  });
+  return [...pages].sort((a,b)=>a-b);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOOL: COMPRESS
+═══════════════════════════════════════════════════════════ */
+function renderCompress(settings, content) {
+  settings.appendChild(infoBox('Il PDF viene re-rasterizzato. Qualità bassa = file più piccolo. Scala ridotta = risoluzione minore.'));
+
+  const qualInp=document.createElement('input'); qualInp.type='range'; qualInp.min=20; qualInp.max=95; qualInp.value=65;
+  const qualVal=document.createElement('span'); qualVal.className='rng-val'; qualVal.textContent='65%';
+  const qualWrap=document.createElement('div'); qualWrap.className='rng-wrap'; qualWrap.appendChild(qualInp); qualWrap.appendChild(qualVal);
+  qualInp.addEventListener('input',()=>qualVal.textContent=qualInp.value+'%');
+  settings.appendChild(sField('Qualità JPEG',qualWrap));
+
+  const scaleInp=document.createElement('input'); scaleInp.type='range'; scaleInp.min=30; scaleInp.max=100; scaleInp.value=70;
+  const scaleVal=document.createElement('span'); scaleVal.className='rng-val'; scaleVal.textContent='70%';
+  const scaleWrap=document.createElement('div'); scaleWrap.className='rng-wrap'; scaleWrap.appendChild(scaleInp); scaleWrap.appendChild(scaleVal);
+  scaleInp.addEventListener('input',()=>scaleVal.textContent=scaleInp.value+'%');
+  settings.appendChild(sField('Scala risoluzione',scaleWrap));
+
+  const fnInp=document.createElement('input'); fnInp.type='text'; fnInp.value='compresso';
+  Object.assign(fnInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Nome file',fnInp));
+
+  const {wrap,btn,prog}=makeGoBtn('Comprimi e Scarica', async (btn,prog)=>{
+    if(!toolPdfDoc) return;
+    btn.disabled=true; prog.classList.add('vis'); setProg(prog,0,'Compressione...');
+    try {
+      const q=parseInt(qualInp.value)/100, s=parseInt(scaleInp.value)/100*1.5;
+      const pages=await pdfToJpegPages(toolPdfDoc,s,q,0,(p,tot)=>setProg(prog,Math.round(p/tot*90),`Pagina ${p}/${tot}...`));
+      const pdf=pdfFromPages(pages,'fit','auto',0,true,[255,255,255]);
+      setProg(prog,98,'Salvataggio...'); await new Promise(r=>setTimeout(r,80));
+      pdf.save((fnInp.value.trim()||'compresso')+'.pdf');
+      setProg(prog,100,'✓ PDF compresso'); toast('PDF compresso scaricato!','ok');
+    } catch(e){console.error(e);toast('Errore','err');}
+    finally{btn.disabled=false;setTimeout(()=>prog.classList.remove('vis'),3000);}
+  });
+  settings.appendChild(wrap);
+
+  content.appendChild(makeDZ('application/pdf',false,async files=>{
+    if(!files[0]) return;
+    toolPdfBuf=await readAsBuf(files[0]);
+    toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
+    btn.disabled=false;
+    content.querySelectorAll('.page-grid,.sec-label:not(:first-child)').forEach(el=>el.remove());
+    await buildPageGrid(toolPdfDoc,content,()=>{});
+    toast(`PDF caricato: ${toolPdfDoc.numPages} pagine · ${fmtBytes(toolPdfBuf.byteLength)}`,'ok');
+  }));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOOL: RESIZE
+═══════════════════════════════════════════════════════════ */
+function renderResize(settings, content) {
+  const fmtSel=sSelect([['a4','A4 (210×297mm)'],['letter','Letter (216×279mm)'],['a3','A3 (297×420mm)']],'a4');
+  settings.appendChild(sField('Formato target',fmtSel));
+  const oriSel=sSelect([['auto','Automatico'],['portrait','Verticale'],['landscape','Orizzontale']],'auto');
+  settings.appendChild(sField('Orientamento',oriSel));
+  const marginInp=document.createElement('input'); marginInp.type='number'; marginInp.value=10; marginInp.min=0; marginInp.max=40;
+  Object.assign(marginInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Margine (mm)',marginInp));
+
+  const containTog=document.createElement('input'); containTog.type='checkbox'; containTog.checked=true;
+  const tRow=document.createElement('div'); tRow.className='tog-row'; tRow.innerHTML='<span>Adatta (contain)</span>';
+  const tLabel=document.createElement('label'); tLabel.className='tog';
+  const tTrack=document.createElement('div'); tTrack.className='tog-track';
+  const tThumb=document.createElement('div'); tThumb.className='tog-thumb';
+  containTog.appendChild(tTrack); containTog.appendChild(tThumb);
+  tLabel.appendChild(containTog); tLabel.appendChild(tTrack); tLabel.appendChild(tThumb);
+  tRow.appendChild(tLabel); settings.appendChild(tRow);
+
+  const fnInp=document.createElement('input'); fnInp.type='text'; fnInp.value='ridimensionato';
+  Object.assign(fnInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Nome file',fnInp));
+
+  const {wrap,btn,prog}=makeGoBtn('Ridimensiona e Scarica', async(btn,prog)=>{
+    if(!toolPdfDoc) return;
+    btn.disabled=true; prog.classList.add('vis'); setProg(prog,0,'Elaborazione...');
+    try {
+      const pages=await pdfToJpegPages(toolPdfDoc,1.5,.92,0,(p,tot)=>setProg(prog,Math.round(p/tot*90),`Pagina ${p}/${tot}...`));
+      const pdf=pdfFromPages(pages,fmtSel.value,oriSel.value,parseFloat(marginInp.value)||0,containTog.checked,[255,255,255]);
+      setProg(prog,98,'Salvataggio...'); await new Promise(r=>setTimeout(r,80));
+      pdf.save((fnInp.value.trim()||'ridimensionato')+'.pdf');
+      setProg(prog,100,'✓ PDF ridimensionato'); toast('PDF ridimensionato!','ok');
+    } catch(e){console.error(e);toast('Errore','err');}
+    finally{btn.disabled=false;setTimeout(()=>prog.classList.remove('vis'),3000);}
+  });
+  settings.appendChild(wrap);
+
+  content.appendChild(makeDZ('application/pdf',false,async files=>{
+    if(!files[0]) return;
+    toolPdfBuf=await readAsBuf(files[0]);
+    toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
+    btn.disabled=false;
+    content.querySelectorAll('.page-grid,.sec-label:not(:first-child)').forEach(el=>el.remove());
+    await buildPageGrid(toolPdfDoc,content,()=>{});
+    toast(`PDF caricato: ${toolPdfDoc.numPages} pagine`,'ok');
+  }));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOOL: ROTATE
+═══════════════════════════════════════════════════════════ */
+function renderRotate(settings, content) {
+  settings.appendChild(infoBox('Clicca le pagine per selezionarle, poi scegli la rotazione da applicare. Puoi anche ruotare tutte le pagine.'));
+
+  const rotSel=sSelect([['90','90° orario'],['180','180°'],['270','270° (90° anti-orario)']],'90');
+  settings.appendChild(sField('Rotazione',rotSel));
+
+  const btnAll=document.createElement('button'); btnAll.className='tbtn c'; btnAll.textContent='Ruota tutte'; btnAll.style.width='100%'; btnAll.style.marginBottom='8px';
+  settings.appendChild(btnAll);
+
+  const fnInp=document.createElement('input'); fnInp.type='text'; fnInp.value='ruotato';
+  Object.assign(fnInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Nome file',fnInp));
+
+  const {wrap,btn,prog}=makeGoBtn('Ruota e Scarica', async(btn,prog)=>{
+    if(!toolPdfDoc) return;
+    btn.disabled=true; prog.classList.add('vis'); setProg(prog,0,'Rotazione...');
+    try {
+      const pages=await pdfToJpegPages(toolPdfDoc,1.5,.92,0,(p,tot)=>setProg(prog,Math.round(p/tot*90),`Pagina ${p}/${tot}...`));
+      const pdf=pdfFromPages(pages,'fit','auto',0,true,[255,255,255]);
+      setProg(prog,98,'Salvataggio...'); await new Promise(r=>setTimeout(r,80));
+      pdf.save((fnInp.value.trim()||'ruotato')+'.pdf');
+      setProg(prog,100,'✓ PDF ruotato'); toast('PDF ruotato!','ok');
+    } catch(e){console.error(e);toast('Errore','err');}
+    finally{btn.disabled=false;setTimeout(()=>prog.classList.remove('vis'),3000);}
+  });
+  settings.appendChild(wrap);
+
+  content.appendChild(makeDZ('application/pdf',false,async files=>{
+    if(!files[0]) return;
+    toolPdfBuf=await readAsBuf(files[0]);
+    toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
+    toolPageRot={};
+    btn.disabled=false;
+    content.querySelectorAll('.page-grid,.sec-label:not(:first-child)').forEach(el=>el.remove());
+    const grid=await buildPageGrid(toolPdfDoc,content,(card,p)=>{
+      const r=parseInt(rotSel.value);
+      toolPageRot[p]=((toolPageRot[p]||0)+r)%360;
+      card.querySelector('.pg-badge').textContent=toolPageRot[p]?toolPageRot[p]+'°':'✓';
+      card.querySelector('.pg-badge').style.display=toolPageRot[p]?'block':'none';
+      card.classList.toggle('sel',!!toolPageRot[p]);
+    });
+    btnAll.addEventListener('click',()=>{
+      const r=parseInt(rotSel.value);
+      grid.querySelectorAll('.pgcard').forEach(card=>{
+        const p=parseInt(card.dataset.p);
+        toolPageRot[p]=((toolPageRot[p]||0)+r)%360;
+        card.querySelector('.pg-badge').textContent=toolPageRot[p]?toolPageRot[p]+'°':'✓';
+        card.querySelector('.pg-badge').style.display=toolPageRot[p]?'block':'none';
+        card.classList.toggle('sel',!!toolPageRot[p]);
+      });
+    });
+    toast(`PDF caricato: ${toolPdfDoc.numPages} pagine`,'ok');
+  }));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOOL: REMOVE PAGES
+═══════════════════════════════════════════════════════════ */
+function renderRemove(settings, content) {
+  settings.appendChild(infoBox('Clicca le anteprime per segnare le pagine da eliminare (evidenziate in rosso). Le restanti saranno mantenute.'));
+
+  const fnInp=document.createElement('input'); fnInp.type='text'; fnInp.value='modificato';
+  Object.assign(fnInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Nome file',fnInp));
+
+  const countLbl=document.createElement('p'); countLbl.className='sec-label'; countLbl.style.marginTop='8px'; countLbl.textContent='0 pagine selezionate per la rimozione';
+  settings.appendChild(countLbl);
+
+  const {wrap,btn,prog}=makeGoBtn('Rimuovi pagine e Scarica', async(btn,prog)=>{
+    if(!toolPdfDoc) return;
+    const toRemove=new Set(Object.keys(toolPageSel).map(Number));
+    if(!toRemove.size){toast('Seleziona almeno una pagina','err');return;}
+    btn.disabled=true; prog.classList.add('vis'); setProg(prog,0,'Elaborazione...');
+    try {
+      const keepPages=[];
+      for(let p=1;p<=toolPdfDoc.numPages;p++) if(!toRemove.has(p)) keepPages.push(p);
+      if(!keepPages.length){toast('Non puoi rimuovere tutte le pagine','err');return;}
+      const pages=[];
+      for(let i=0;i<keepPages.length;i++){
+        setProg(prog,Math.round(i/keepPages.length*90),`Pagina ${i+1}/${keepPages.length}...`);
+        const pn=keepPages[i];
+        const {canvas,origVp}=await renderPageFull(toolPdfDoc,pn,1.5,0);
+        pages.push({dataUrl:canvas.toDataURL('image/jpeg',.92),w:canvas.width,h:canvas.height,origW:origVp.width,origH:origVp.height});
+      }
+      const pdf=pdfFromPages(pages,'fit','auto',0,true,[255,255,255]);
+      setProg(prog,98,'Salvataggio...'); await new Promise(r=>setTimeout(r,80));
+      pdf.save((fnInp.value.trim()||'modificato')+'.pdf');
+      setProg(prog,100,`✓ ${toRemove.size} pagine rimosse`); toast(`${toRemove.size} pagine rimosse`,'ok');
+    } catch(e){console.error(e);toast('Errore','err');}
+    finally{btn.disabled=false;setTimeout(()=>prog.classList.remove('vis'),3000);}
+  });
+  settings.appendChild(wrap);
+
+  content.appendChild(makeDZ('application/pdf',false,async files=>{
+    if(!files[0]) return;
+    toolPdfBuf=await readAsBuf(files[0]);
+    toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
+    toolPageSel={}; btn.disabled=false;
+    content.querySelectorAll('.page-grid,.sec-label:not(:first-child)').forEach(el=>el.remove());
+    await buildPageGrid(toolPdfDoc,content,(card,p)=>{
+      if(toolPageSel[p]){delete toolPageSel[p];card.classList.remove('del');card.querySelector('.pg-badge').style.display='none';}
+      else{toolPageSel[p]=true;card.classList.add('del');card.querySelector('.pg-badge').textContent='🗑️';card.querySelector('.pg-badge').style.display='block';}
+      const n=Object.keys(toolPageSel).length;
+      countLbl.textContent=`${n} pagina/e selezionate per la rimozione`;
+      btn.disabled=n===0;
+    });
+    toast(`PDF caricato: ${toolPdfDoc.numPages} pagine`,'ok');
+  }));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOOL: WATERMARK
+═══════════════════════════════════════════════════════════ */
+function renderWatermark(settings, content) {
+  const txtInp=document.createElement('input'); txtInp.type='text'; txtInp.value='RISERVATO';
+  Object.assign(txtInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Testo watermark',txtInp));
+
+  const opInp=document.createElement('input'); opInp.type='range'; opInp.min=5; opInp.max=60; opInp.value=18;
+  const opVal=document.createElement('span'); opVal.className='rng-val'; opVal.textContent='18%';
+  opInp.addEventListener('input',()=>opVal.textContent=opInp.value+'%');
+  const opWrap=document.createElement('div'); opWrap.className='rng-wrap'; opWrap.appendChild(opInp); opWrap.appendChild(opVal);
+  settings.appendChild(sField('Opacità',opWrap));
+
+  const szInp=document.createElement('input'); szInp.type='range'; szInp.min=16; szInp.max=80; szInp.value=42;
+  const szVal=document.createElement('span'); szVal.className='rng-val'; szVal.textContent='42pt';
+  szInp.addEventListener('input',()=>szVal.textContent=szInp.value+'pt');
+  const szWrap=document.createElement('div'); szWrap.className='rng-wrap'; szWrap.appendChild(szInp); szWrap.appendChild(szVal);
+  settings.appendChild(sField('Dimensione',szWrap));
+
+  const clrInp=document.createElement('input'); clrInp.type='color'; clrInp.value='#808080';
+  settings.appendChild(sField('Colore',clrInp));
+
+  const angInp=document.createElement('input'); angInp.type='range'; angInp.min=0; angInp.max=90; angInp.value=45;
+  const angVal=document.createElement('span'); angVal.className='rng-val'; angVal.textContent='45°';
+  angInp.addEventListener('input',()=>angVal.textContent=angInp.value+'°');
+  const angWrap=document.createElement('div'); angWrap.className='rng-wrap'; angWrap.appendChild(angInp); angWrap.appendChild(angVal);
+  settings.appendChild(sField('Angolo',angWrap));
+
+  const fnInp=document.createElement('input'); fnInp.type='text'; fnInp.value='watermark';
+  Object.assign(fnInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Nome file',fnInp));
+
+  const {wrap,btn,prog}=makeGoBtn('Aggiungi Watermark e Scarica', async(btn,prog)=>{
+    if(!toolPdfDoc) return;
+    btn.disabled=true; prog.classList.add('vis'); setProg(prog,0,'Elaborazione...');
+    try {
+      const txt=txtInp.value.trim()||'WATERMARK';
+      const op=parseInt(opInp.value)/100;
+      const sz=parseInt(szInp.value);
+      const angle=parseInt(angInp.value);
+      const rgb=hexRgb(clrInp.value);
+      const pages=await pdfToJpegPages(toolPdfDoc,1.5,.92,0,(p,tot)=>setProg(prog,Math.round(p/tot*80),`Pagina ${p}/${tot}...`));
+      const pdf=pdfFromPages(pages,'fit','auto',0,true,[255,255,255]);
+      // Add watermark on each page
+      const numPages=pdf.getNumberOfPages();
+      for(let i=1;i<=numPages;i++){
+        pdf.setPage(i);
+        const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
+        pdf.saveGraphicsState();
+        pdf.setGState(new pdf.GState({opacity:op}));
+        pdf.setFontSize(sz); pdf.setTextColor(...rgb);
+        pdf.text(txt,pw/2,ph/2,{angle,align:'center',baseline:'middle'});
+        pdf.restoreGraphicsState();
+      }
+      setProg(prog,98,'Salvataggio...'); await new Promise(r=>setTimeout(r,80));
+      pdf.save((fnInp.value.trim()||'watermark')+'.pdf');
+      setProg(prog,100,'✓ Watermark applicato'); toast('Watermark aggiunto!','ok');
+    } catch(e){console.error(e);toast('Errore','err');}
+    finally{btn.disabled=false;setTimeout(()=>prog.classList.remove('vis'),3000);}
+  });
+  settings.appendChild(wrap);
+
+  content.appendChild(makeDZ('application/pdf',false,async files=>{
+    if(!files[0]) return;
+    toolPdfBuf=await readAsBuf(files[0]);
+    toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
+    btn.disabled=false;
+    content.querySelectorAll('.page-grid,.sec-label:not(:first-child)').forEach(el=>el.remove());
+    await buildPageGrid(toolPdfDoc,content,()=>{});
+    toast(`PDF caricato: ${toolPdfDoc.numPages} pagine`,'ok');
+  }));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOOL: PAGE NUMBERS
+═══════════════════════════════════════════════════════════ */
+function renderPageNums(settings, content) {
+  const posSel=sSelect([['bc','Basso centro'],['br','Basso destra'],['bl','Basso sinistra'],['tc','Alto centro'],['tr','Alto destra']],'bc');
+  settings.appendChild(sField('Posizione',posSel));
+  const fmtSel=sSelect([['n','1, 2, 3…'],['tot','1/10, 2/10…'],['pg','Pag. 1, Pag. 2…']],'n');
+  settings.appendChild(sField('Formato numero',fmtSel));
+  const startInp=document.createElement('input'); startInp.type='number'; startInp.value=1; startInp.min=0;
+  Object.assign(startInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Numero iniziale',startInp));
+  const szInp=document.createElement('input'); szInp.type='range'; szInp.min=6; szInp.max=18; szInp.value=9;
+  const szVal=document.createElement('span'); szVal.className='rng-val'; szVal.textContent='9pt';
+  szInp.addEventListener('input',()=>szVal.textContent=szInp.value+'pt');
+  const szWrap=document.createElement('div'); szWrap.className='rng-wrap'; szWrap.appendChild(szInp); szWrap.appendChild(szVal);
+  settings.appendChild(sField('Dimensione testo',szWrap));
+  const clrInp=document.createElement('input'); clrInp.type='color'; clrInp.value='#666666';
+  settings.appendChild(sField('Colore',clrInp));
+  const marginInp=document.createElement('input'); marginInp.type='number'; marginInp.value=8; marginInp.min=0;
+  Object.assign(marginInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Margine dal bordo (mm)',marginInp));
+  const fnInp=document.createElement('input'); fnInp.type='text'; fnInp.value='numerato';
+  Object.assign(fnInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Nome file',fnInp));
+
+  const {wrap,btn,prog}=makeGoBtn('Aggiungi Numeri e Scarica', async(btn,prog)=>{
+    if(!toolPdfDoc) return;
+    btn.disabled=true; prog.classList.add('vis'); setProg(prog,0,'Elaborazione...');
+    try {
+      const pages=await pdfToJpegPages(toolPdfDoc,1.5,.92,0,(p,tot)=>setProg(prog,Math.round(p/tot*85),`Pagina ${p}/${tot}...`));
+      const pdf=pdfFromPages(pages,'fit','auto',0,true,[255,255,255]);
+      const rgb=hexRgb(clrInp.value);
+      const sz=parseInt(szInp.value), mg=parseFloat(marginInp.value)||8;
+      const start=parseInt(startInp.value)||1;
+      const numPages=pdf.getNumberOfPages();
+      const fmtNum=(n,tot)=>{ const mode=fmtSel.value; if(mode==='n') return String(n); if(mode==='tot') return `${n}/${tot}`; return `Pag. ${n}`; };
+      for(let i=1;i<=numPages;i++){
+        pdf.setPage(i);
+        const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
+        pdf.setFontSize(sz); pdf.setTextColor(...rgb);
+        const label=fmtNum(i+start-1,numPages);
+        const pos=posSel.value;
+        let x,y,align;
+        if(pos.endsWith('c')){x=pw/2;align='center';}
+        else if(pos.endsWith('r')){x=pw-mg;align='right';}
+        else{x=mg;align='left';}
+        y=pos.startsWith('b')?ph-mg:mg+sz*0.35;
+        pdf.text(label,x,y,{align});
+      }
+      setProg(prog,98,'Salvataggio...'); await new Promise(r=>setTimeout(r,80));
+      pdf.save((fnInp.value.trim()||'numerato')+'.pdf');
+      setProg(prog,100,'✓ Numeri aggiunti'); toast('Numeri di pagina aggiunti!','ok');
+    } catch(e){console.error(e);toast('Errore','err');}
+    finally{btn.disabled=false;setTimeout(()=>prog.classList.remove('vis'),3000);}
+  });
+  settings.appendChild(wrap);
+
+  content.appendChild(makeDZ('application/pdf',false,async files=>{
+    if(!files[0]) return;
+    toolPdfBuf=await readAsBuf(files[0]);
+    toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
+    btn.disabled=false;
+    content.querySelectorAll('.page-grid,.sec-label:not(:first-child)').forEach(el=>el.remove());
+    await buildPageGrid(toolPdfDoc,content,()=>{});
+    toast(`PDF caricato: ${toolPdfDoc.numPages} pagine`,'ok');
+  }));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOOL: PDF → IMAGES
+═══════════════════════════════════════════════════════════ */
+function renderToImg(settings, content) {
+  const fmtSel=sSelect([['jpeg','JPEG'],['png','PNG']],'jpeg');
+  settings.appendChild(sField('Formato immagine',fmtSel));
+  const qualInp=document.createElement('input'); qualInp.type='range'; qualInp.min=50; qualInp.max=100; qualInp.value=90;
+  const qualVal=document.createElement('span'); qualVal.className='rng-val'; qualVal.textContent='90%';
+  qualInp.addEventListener('input',()=>qualVal.textContent=qualInp.value+'%');
+  const qualWrap=document.createElement('div'); qualWrap.className='rng-wrap'; qualWrap.appendChild(qualInp); qualWrap.appendChild(qualVal);
+  const qField=sField('Qualità',qualWrap); settings.appendChild(qField);
+  fmtSel.addEventListener('change',()=>qField.style.display=fmtSel.value==='png'?'none':'block');
+  const scaleInp=document.createElement('input'); scaleInp.type='range'; scaleInp.min=1; scaleInp.max=4; scaleInp.step=0.5; scaleInp.value=2;
+  const scaleVal=document.createElement('span'); scaleVal.className='rng-val'; scaleVal.textContent='2×';
+  scaleInp.addEventListener('input',()=>scaleVal.textContent=scaleInp.value+'×');
+  const scWrap=document.createElement('div'); scWrap.className='rng-wrap'; scWrap.appendChild(scaleInp); scWrap.appendChild(scaleVal);
+  settings.appendChild(sField('Risoluzione (scala)',scWrap));
+  settings.appendChild(infoBox('Le immagini vengono inserite in un archivio ZIP. Può richiedere del tempo per PDF lunghi.'));
+  const fnInp=document.createElement('input'); fnInp.type='text'; fnInp.value='pagine';
+  Object.assign(fnInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Prefisso nome file',fnInp));
+
+  const {wrap,btn,prog}=makeGoBtn('Esporta come Immagini (ZIP)', async(btn,prog)=>{
+    if(!toolPdfDoc) return;
+    btn.disabled=true; prog.classList.add('vis'); setProg(prog,0,'Rendering pagine...');
+    try {
+      const fmt=fmtSel.value, q=parseInt(qualInp.value)/100, scale=parseFloat(scaleInp.value);
+      const zip=new JSZip();
+      const prefix=fnInp.value.trim()||'pagine';
+      for(let p=1;p<=toolPdfDoc.numPages;p++){
+        setProg(prog,Math.round(p/toolPdfDoc.numPages*85),`Pagina ${p}/${toolPdfDoc.numPages}...`);
+        const page=await toolPdfDoc.getPage(p);
+        const vp=page.getViewport({scale});
+        const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
+        await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+        const mime=fmt==='png'?'image/png':'image/jpeg';
+        const dataUrl=cv.toDataURL(mime,q);
+        const b64=dataUrl.split(',')[1];
+        zip.file(`${prefix}_${String(p).padStart(3,'0')}.${fmt}`,b64,{base64:true});
+      }
+      setProg(prog,92,'Creazione ZIP...');
+      const level=fmt==='png'?1:6;
+      const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level}});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=prefix+'_immagini.zip'; a.click();
+      URL.revokeObjectURL(url);
+      setProg(prog,100,`✓ ${toolPdfDoc.numPages} immagini esportate`);
+      toast(`${toolPdfDoc.numPages} immagini nel ZIP`,'ok');
+    } catch(e){console.error(e);toast('Errore','err');}
+    finally{btn.disabled=false;setTimeout(()=>prog.classList.remove('vis'),3000);}
+  });
+  settings.appendChild(wrap);
+
+  content.appendChild(makeDZ('application/pdf',false,async files=>{
+    if(!files[0]) return;
+    toolPdfBuf=await readAsBuf(files[0]);
+    toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
+    btn.disabled=false;
+    content.querySelectorAll('.page-grid,.sec-label:not(:first-child)').forEach(el=>el.remove());
+    await buildPageGrid(toolPdfDoc,content,()=>{});
+    toast(`PDF caricato: ${toolPdfDoc.numPages} pagine`,'ok');
+  }));
+}
 </script>
 </body>
 </html>

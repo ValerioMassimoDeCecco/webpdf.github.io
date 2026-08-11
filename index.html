@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <style>
 /* ═══════════════════════════════════════════════
    RESET & TOKENS
@@ -590,6 +591,12 @@ header{
     <div class="tools-main" id="tool-selector">
       <p class="sec-label" style="margin-bottom:14px">Seleziona uno strumento</p>
       <div class="tool-grid">
+        <div class="tool-card" data-tool="text2pdf">
+          <div class="tc-icon">📝</div>
+          <div class="tc-name">Testo/Doc → PDF</div>
+          <div class="tc-desc">Carica file di testo (.txt) o documenti Word (.docx) per creare un PDF impaginato.</div>
+          <div class="tc-tag">Testo a PDF</div>
+        </div>
         <div class="tool-card" data-tool="merge">
           <div class="tc-icon">🔀</div>
           <div class="tc-name">Unisci PDF</div>
@@ -1081,6 +1088,7 @@ document.getElementById('btn-genpdf').addEventListener('click', async () => {
    ── STRUMENTI PDF ──
 ═══════════════════════════════════════════════════════════ */
 const toolDefs = {
+  text2pdf: {title:'Testo/Doc → PDF', subtitle:'Crea PDF da file di testo o documenti Word'},
   merge:    {title:'Unisci PDF',    subtitle:'Trascina i PDF nell\'ordine desiderato'},
   split:    {title:'Dividi PDF',    subtitle:'Estrai pagine o dividi in sezioni'},
   compress: {title:'Comprimi PDF',  subtitle:'Riduci la dimensione del file'},
@@ -1131,7 +1139,8 @@ function renderToolUI(id) {
   settings.innerHTML = '';
   content.innerHTML  = '';
 
-  if (id === 'merge') renderMerge(settings, content);
+  if (id === 'text2pdf') renderTextToPdf(settings, content);
+  else if (id === 'merge') renderMerge(settings, content);
   else if (id === 'split') renderSplit(settings, content);
   else if (id === 'compress') renderCompress(settings, content);
   else if (id === 'resize') renderResize(settings, content);
@@ -1143,17 +1152,42 @@ function renderToolUI(id) {
 }
 
 /* ── HELPERS ──────────────────────────────────────────────── */
-function makeDZ(accept, multi, onFiles) {
+function makeDZ(accept, multi, onFiles, labels) {
   const dz = document.createElement('div');
   dz.className = 'dropzone';
   const inp = document.createElement('input');
   inp.type='file'; inp.accept=accept; inp.multiple=multi;
   dz.appendChild(inp);
-  dz.innerHTML += `<span class="dz-icon">◈</span><p class="dz-title">${multi?'Trascina i file PDF':'Trascina il PDF'}</p><p class="dz-hint">o clicca per selezionare &nbsp;·&nbsp; <strong>PDF</strong></p>`;
+  
+  const icon = document.createElement('span');
+  icon.className = 'dz-icon';
+  icon.textContent = labels?.icon || '⬡';
+  
+  const title = document.createElement('p');
+  title.className = 'dz-title';
+  title.textContent = labels?.title || (multi?'Trascina i file PDF':'Trascina il PDF');
+  
+  const hint = document.createElement('p');
+  hint.className = 'dz-hint';
+  hint.innerHTML = labels?.hint || 'o clicca per selezionare &nbsp;·&nbsp; <strong>PDF</strong>';
+  
+  dz.appendChild(icon);
+  dz.appendChild(title);
+  dz.appendChild(hint);
+
   dz.querySelector('input').addEventListener('change', e => onFiles([...e.target.files]));
   dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
   dz.addEventListener('dragleave', () => dz.classList.remove('over'));
-  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); onFiles([...e.dataTransfer.files].filter(f=>f.type==='application/pdf')); });
+  dz.addEventListener('drop', e => { 
+    e.preventDefault(); 
+    dz.classList.remove('over'); 
+    const files = [...e.dataTransfer.files].filter(f => {
+      const ext = '.' + f.name.split('.').pop().toLowerCase();
+      if (accept.includes('image/*') && f.type.startsWith('image/')) return true;
+      return accept.includes(f.type) || accept.includes(ext);
+    });
+    if (files.length) onFiles(files);
+  });
   return dz;
 }
 
@@ -1286,6 +1320,132 @@ function pdfFromPages(pages, fmt, ori, margin, contain, bgRgb) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   TOOL: TEXT/DOC TO PDF
+═══════════════════════════════════════════════════════════ */
+function renderTextToPdf(settings, content) {
+  settings.appendChild(infoBox('Incolla il testo o carica un file. Per documenti complessi (es. vecchi .doc), copia e incolla il contenuto qui.'));
+
+  const fontSel = sSelect([['helvetica','Helvetica'],['times','Times'],['courier','Courier']], 'times');
+  settings.appendChild(sField('Font', fontSel));
+
+  const szInp = document.createElement('input'); szInp.type = 'number'; szInp.value = 12; szInp.min = 8; szInp.max = 24;
+  Object.assign(szInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Dimensione testo (pt)', szInp));
+
+  const alignSel = sSelect([['left','Sinistra'],['center','Centro'],['right','Destra']], 'left');
+  settings.appendChild(sField('Allineamento', alignSel));
+
+  const lhInp = document.createElement('input'); lhInp.type = 'number'; lhInp.value = 1.5; lhInp.min = 1; lhInp.max = 2.5; lhInp.step = 0.1;
+  Object.assign(lhInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Interlinea', lhInp));
+
+  const fnInp = document.createElement('input'); fnInp.type = 'text'; fnInp.value = 'documento';
+  Object.assign(fnInp.style,{width:'100%',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--ink)',fontFamily:'inherit',fontSize:'.68rem',padding:'7px 9px',borderRadius:'var(--radius)',outline:'none'});
+  settings.appendChild(sField('Nome file', fnInp));
+
+  const {wrap, btn, prog} = makeGoBtn('Genera PDF da Testo', async (btn, prog) => {
+    const txt = txtArea.value;
+    if (!txt.trim()) { toast('Il testo è vuoto', 'err'); return; }
+    btn.disabled = true; prog.classList.add('vis'); setProg(prog, 0, 'Generazione...');
+    try {
+      setProg(prog, 30, 'Impaginazione...');
+      const pdf = new jsPDF({unit: 'mm', format: 'a4', orientation: 'portrait'});
+      const margin = 20;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const usableWidth = pageWidth - margin * 2;
+      
+      const font = fontSel.value;
+      const fontSize = parseInt(szInp.value) || 12;
+      const lineHeight = parseFloat(lhInp.value) || 1.5;
+      const align = alignSel.value;
+      
+      pdf.setFont(font, 'normal');
+      pdf.setFontSize(fontSize);
+      pdf.setTextColor(30, 30, 30);
+      
+      const lines = pdf.splitTextToSize(txt, usableWidth);
+      let y = margin;
+      const lineHeightMm = (fontSize * lineHeight) * 0.352778; // pt to mm conversion
+      
+      const x = align === 'center' ? pageWidth / 2 : (align === 'right' ? pageWidth - margin : margin);
+      
+      for (let i = 0; i < lines.length; i++) {
+        if (y > pageHeight - margin) {
+          pdf.addPage();
+          y = margin;
+        }
+        pdf.text(lines[i], x, y, {align: align});
+        y += lineHeightMm;
+      }
+      
+      setProg(prog, 90, 'Salvataggio...');
+      await new Promise(r => setTimeout(r, 80));
+      pdf.save((fnInp.value.trim() || 'documento') + '.pdf');
+      setProg(prog, 100, '✓ PDF generato');
+      toast('PDF da testo creato!', 'ok');
+    } catch(e) { console.error(e); toast('Errore', 'err'); }
+    finally { btn.disabled = false; setTimeout(() => prog.classList.remove('vis'), 3000); }
+  });
+  settings.appendChild(wrap);
+
+  const dz = makeDZ('text/plain,.txt,.csv,.md,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx', false, async files => {
+    if(!files[0]) return;
+    const file = files[0];
+    if (file.name.toLowerCase().endsWith('.docx')) {
+      try {
+        const arrayBuffer = await readAsBuf(file);
+        const result = await mammoth.extractRawText({arrayBuffer});
+        txtArea.value = result.value;
+        toast('Documento Word (.docx) caricato!', 'ok');
+      } catch(e) {
+        console.error(e);
+        toast('Errore nella lettura del file Word', 'err');
+      }
+    } else if (file.name.toLowerCase().endsWith('.doc')) {
+      toast('I file .doc (vecchio formato) non sono supportati. Copia e incolla il testo.', 'err');
+    } else {
+      const text = await file.text();
+      txtArea.value = text;
+      toast('File di testo caricato!', 'ok');
+    }
+  }, {
+    icon: '📝',
+    title: 'Trascina file testo o documento',
+    hint: 'o clicca per selezionare &nbsp;·&nbsp; <strong>TXT, MD, DOCX</strong>'
+  });
+  content.appendChild(dz);
+
+  const txtAreaWrap = document.createElement('div');
+  txtAreaWrap.style.marginTop = '16px';
+  txtAreaWrap.style.display = 'flex';
+  txtAreaWrap.style.flexDirection = 'column';
+  
+  const lbl = document.createElement('label');
+  lbl.className = 'sec-label';
+  lbl.textContent = 'Contenuto testo';
+  
+  const txtArea = document.createElement('textarea');
+  txtArea.style.width = '100%';
+  txtArea.style.height = '400px';
+  txtArea.style.background = 'var(--surface)';
+  txtArea.style.border = '1px solid var(--border)';
+  txtArea.style.color = 'var(--ink)';
+  txtArea.style.fontFamily = 'inherit';
+  txtArea.style.fontSize = '.75rem';
+  txtArea.style.padding = '10px';
+  txtArea.style.borderRadius = 'var(--radius)';
+  txtArea.style.outline = 'none';
+  txtArea.style.resize = 'vertical';
+  txtArea.placeholder = 'Incolla qui il tuo testo...';
+  
+  txtAreaWrap.appendChild(lbl);
+  txtAreaWrap.appendChild(txtArea);
+  content.appendChild(txtAreaWrap);
+}
+
+
+/* ═══════════════════════════════════════════════════════════
    TOOL: MERGE
 ═══════════════════════════════════════════════════════════ */
 function renderMerge(settings, content) {
@@ -1325,7 +1485,7 @@ function renderMerge(settings, content) {
   settings.appendChild(wrap);
 
   // File list
-  content.appendChild(makeDZ('application/pdf', true, async files => {
+  content.appendChild(makeDZ('application/pdf,.pdf', true, async files => {
     for (const f of files) {
       const buf = await readAsBuf(f);
       const doc = await loadPDF(buf.slice(0));
@@ -1430,7 +1590,7 @@ function renderSplit(settings, content) {
   });
   settings.appendChild(wrap);
 
-  content.appendChild(makeDZ('application/pdf',false,async files=>{
+  content.appendChild(makeDZ('application/pdf,.pdf',false,async files=>{
     if(!files[0]) return;
     toolPdfBuf=await readAsBuf(files[0]);
     toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
@@ -1493,7 +1653,7 @@ function renderCompress(settings, content) {
   });
   settings.appendChild(wrap);
 
-  content.appendChild(makeDZ('application/pdf',false,async files=>{
+  content.appendChild(makeDZ('application/pdf,.pdf',false,async files=>{
     if(!files[0]) return;
     toolPdfBuf=await readAsBuf(files[0]);
     toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
@@ -1543,7 +1703,7 @@ function renderResize(settings, content) {
   });
   settings.appendChild(wrap);
 
-  content.appendChild(makeDZ('application/pdf',false,async files=>{
+  content.appendChild(makeDZ('application/pdf,.pdf',false,async files=>{
     if(!files[0]) return;
     toolPdfBuf=await readAsBuf(files[0]);
     toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
@@ -1584,7 +1744,7 @@ function renderRotate(settings, content) {
   });
   settings.appendChild(wrap);
 
-  content.appendChild(makeDZ('application/pdf',false,async files=>{
+  content.appendChild(makeDZ('application/pdf,.pdf',false,async files=>{
     if(!files[0]) return;
     toolPdfBuf=await readAsBuf(files[0]);
     toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
@@ -1650,7 +1810,7 @@ function renderRemove(settings, content) {
   });
   settings.appendChild(wrap);
 
-  content.appendChild(makeDZ('application/pdf',false,async files=>{
+  content.appendChild(makeDZ('application/pdf,.pdf',false,async files=>{
     if(!files[0]) return;
     toolPdfBuf=await readAsBuf(files[0]);
     toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
@@ -1730,7 +1890,7 @@ function renderWatermark(settings, content) {
   });
   settings.appendChild(wrap);
 
-  content.appendChild(makeDZ('application/pdf',false,async files=>{
+  content.appendChild(makeDZ('application/pdf,.pdf',false,async files=>{
     if(!files[0]) return;
     toolPdfBuf=await readAsBuf(files[0]);
     toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
@@ -1798,7 +1958,7 @@ function renderPageNums(settings, content) {
   });
   settings.appendChild(wrap);
 
-  content.appendChild(makeDZ('application/pdf',false,async files=>{
+  content.appendChild(makeDZ('application/pdf,.pdf',false,async files=>{
     if(!files[0]) return;
     toolPdfBuf=await readAsBuf(files[0]);
     toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
@@ -1862,7 +2022,7 @@ function renderToImg(settings, content) {
   });
   settings.appendChild(wrap);
 
-  content.appendChild(makeDZ('application/pdf',false,async files=>{
+  content.appendChild(makeDZ('application/pdf,.pdf',false,async files=>{
     if(!files[0]) return;
     toolPdfBuf=await readAsBuf(files[0]);
     toolPdfDoc=await loadPDF(toolPdfBuf.slice(0));
